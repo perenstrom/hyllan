@@ -11,9 +11,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SEED_ITEMS } from "@/lib/pantry";
+import { formatAmount, SEED_ITEMS } from "@/lib/pantry";
 import { TopBarA } from "./top-bar";
 import type { VariantKey } from "@/lib/variant";
 
@@ -33,13 +32,15 @@ export function PantryListA({ variant }: { variant: VariantKey }) {
   return (
     <div className="flex flex-1 flex-col">
       <TopBarA variant={variant} />
-      <div className="mx-auto w-full max-w-3xl px-4 py-6">
+      <div className="mx-auto w-full max-w-3xl px-2 py-4 sm:px-4 sm:py-6">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead className="w-40">Quantity</TableHead>
-              <TableHead className="w-24">Unit</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="w-[88px] text-right sm:w-28">
+                Actions
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -51,42 +52,39 @@ export function PantryListA({ variant }: { variant: VariantKey }) {
                   className={outOfStock ? "text-zinc-400 dark:text-zinc-600" : undefined}
                 >
                   <TableCell className="font-medium">
-                    {item.name}
-                    {outOfStock && (
-                      <span className="ml-2 text-xs font-normal uppercase tracking-wide text-zinc-400 dark:text-zinc-600">
-                        Out of stock
-                      </span>
-                    )}
+                    <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
+                      <span>{item.name}</span>
+                      {outOfStock && (
+                        <span className="text-xs font-normal uppercase tracking-wide text-zinc-400 dark:text-zinc-600">
+                          Out of stock
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatAmount(item.quantity, item.unit)}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-end gap-1">
                       <Button
                         size="icon"
                         variant="outline"
-                        className="h-6 w-6"
+                        className="h-8 w-8"
                         onClick={() => bump(item.id, -1)}
                         aria-label={`Decrease ${item.name}`}
                       >
                         −
                       </Button>
-                      <span className="w-10 text-center tabular-nums">
-                        {item.quantity}
-                      </span>
                       <Button
                         size="icon"
                         variant="outline"
-                        className="h-6 w-6"
+                        className="h-8 w-8"
                         onClick={() => bump(item.id, 1)}
                         aria-label={`Increase ${item.name}`}
                       >
                         +
                       </Button>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="font-mono">
-                      {item.unit}
-                    </Badge>
                   </TableCell>
                 </TableRow>
               );

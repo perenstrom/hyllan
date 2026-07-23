@@ -39,3 +39,8 @@ export function findByName(
   if (!trimmed) return undefined;
   return items.find((item) => item.name.trim().toLowerCase() === trimmed);
 }
+
+// "count" is the unit-less default — postfix every other unit onto the quantity.
+export function formatAmount(quantity: number, unit: Unit): string {
+  return unit === "count" ? `${quantity}` : `${quantity} ${unit}`;
+}
