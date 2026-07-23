@@ -1,15 +1,25 @@
-export default function Home() {
+// PROTOTYPE (PER-218) — pantry item list, dispatched by ?variant=a|b|c.
+
+import { PantryListA } from "@/components/pantry/variant-a/pantry-list";
+import { PantryListB } from "@/components/pantry/variant-b/pantry-list";
+import { PantryListC } from "@/components/pantry/variant-c/pantry-list";
+import { VariantSwitcher } from "@/components/variant-switcher";
+import { resolveVariant } from "@/lib/variant";
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ variant?: string | string[] }>;
+}) {
+  const { variant: variantParam } = await searchParams;
+  const variant = resolveVariant(variantParam);
+
   return (
-    <div className="flex flex-1 flex-col items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex max-w-md flex-col items-center gap-4 px-6 text-center">
-        <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-zinc-50">
-          Hyllan
-        </h1>
-        <p className="text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-          Households sign up, then track what pantry items they have and how
-          much of each.
-        </p>
-      </main>
+    <div className="flex flex-1 flex-col">
+      {variant === "a" && <PantryListA variant={variant} />}
+      {variant === "b" && <PantryListB variant={variant} />}
+      {variant === "c" && <PantryListC />}
+      <VariantSwitcher />
     </div>
   );
 }
