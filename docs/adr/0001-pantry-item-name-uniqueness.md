@@ -1,0 +1,3 @@
+# Pantry items are unique per household by name, case-insensitively
+
+A household cannot hold two pantry items with the same name (compared case-insensitively). Adding an item whose name matches an existing one increments that item's quantity instead of inserting a new row. We considered allowing duplicate rows (e.g. two separately-tracked "Rice" entries for different purchases), which would need no uniqueness constraint and a plain insert-on-add, but rejected it: it fragments a household's view of "how much of this do we have" across multiple rows, which works against the app's core purpose of quantity tracking. Enforced via a uniqueness constraint on the normalized (household, name) pair.
