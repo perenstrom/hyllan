@@ -2,47 +2,22 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 
-import { createClient } from "@/lib/supabase/client";
-
-type LogInState = { error: string } | undefined;
+import { logIn } from "./log-in";
 
 export default function LogInPage() {
   const router = useRouter();
+  const [state, formAction, pending] = useActionState(logIn, undefined);
 
-  const [state, formAction, pending] = useActionState<LogInState, FormData>(
-    async (_prevState, formData) => {
-      const email = formData.get("email");
-      const password = formData.get("password");
-
-      if (
-        typeof email !== "string" ||
-        typeof password !== "string" ||
-        !email ||
-        !password
-      ) {
-        return { error: "Email and password are required." };
-      }
-
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        return { error: error.message };
-      }
-
+  useEffect(() => {
+    if (state && "success" in state) {
       // Cookies are already set (browser client's cookie storage); refresh
       // so Server Components pick up the new session before navigating.
       router.refresh();
       router.push("/");
-      return undefined;
-    },
-    undefined,
-  );
+    }
+  }, [state, router]);
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center bg-zinc-50 px-6 dark:bg-black">
@@ -88,7 +63,9 @@ export default function LogInPage() {
           />
         </div>
 
-        {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
+        {state && "error" in state && (
+          <p className="text-sm text-red-600">{state.error}</p>
+        )}
 
         <button
           type="submit"

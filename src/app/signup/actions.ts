@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { db } from "@/db/client";
 import { createHouseholdForUser } from "@/lib/household";
+import { parseCredentials } from "@/lib/parse-credentials";
 import { createClient } from "@/lib/supabase/server";
 
 export type SignUpState = { error: string } | undefined;
@@ -12,20 +13,13 @@ export async function signUp(
   _prevState: SignUpState,
   formData: FormData,
 ): Promise<SignUpState> {
-  const email = formData.get("email");
-  const password = formData.get("password");
-
-  if (
-    typeof email !== "string" ||
-    typeof password !== "string" ||
-    !email ||
-    !password
-  ) {
+  const credentials = parseCredentials(formData);
+  if (!credentials) {
     return { error: "Email and password are required." };
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  const { data, error } = await supabase.auth.signUp(credentials);
 
   if (error || !data.user) {
     return { error: error?.message ?? "Could not create account." };
