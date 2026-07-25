@@ -14,6 +14,10 @@ jobs:
       # lazily on first query, so a syntactically valid but unreachable URL
       # is enough — no real database is needed in CI for this build step.
       DATABASE_URL: postgres://placeholder:placeholder@localhost:5432/placeholder
+      # next.config.ts's rewrite() reads this at build time to validate the
+      # rewrite destination — it just needs to be a well-formed URL, not
+      # reachable (no GoTrue container runs in this job).
+      GOTRUE_API_EXTERNAL_URL: http://localhost:9999
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,3 +29,32 @@ jobs:
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: hyllan
+      POSTGRES_DB: hyllan
+      POSTGRES_PORT: 5432
+      DATABASE_URL: postgres://postgres:hyllan@localhost:5432/hyllan
+      GOTRUE_PORT: 9999
+      GOTRUE_SITE_URL: http://localhost:3000
+      GOTRUE_API_EXTERNAL_URL: http://localhost:9999
+      GOTRUE_DB_PASSWORD: supabase_auth_admin
+      GOTRUE_JWT_SECRET: ci-only-secret-do-not-use-in-production
+      NEXT_PUBLIC_SUPABASE_URL: http://localhost:3000
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-unused-by-standalone-gotrue
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - run: npm ci
+      - run: docker compose up -d --wait
+      - run: npm run db:migrate
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - if: always()
+        run: docker compose down
