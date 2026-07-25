@@ -14,6 +14,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # while collecting page data — a syntactically valid but unreachable URL is
 # enough since the postgres.js driver only connects lazily (same as CI).
 ENV DATABASE_URL=postgres://placeholder:placeholder@localhost:5432/placeholder
+# NEXT_PUBLIC_* vars are inlined into the client bundle at build time, not
+# read at container startup — must come in as a build arg, not a runtime
+# `environment:` entry (see compose.yaml's app.build.args).
+ARG NEXT_PUBLIC_GLITCHTIP_DSN
+ENV NEXT_PUBLIC_GLITCHTIP_DSN=$NEXT_PUBLIC_GLITCHTIP_DSN
 RUN npm run build
 
 FROM node:24-alpine AS runner
