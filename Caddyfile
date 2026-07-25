@@ -1,0 +1,7 @@
+{$DOMAIN} {
+	reverse_proxy app:3000
+}
+
+{$AUTH_DOMAIN} {
+	reverse_proxy auth:9999
+}
