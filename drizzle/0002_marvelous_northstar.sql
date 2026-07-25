@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "households_user_id_unique" ON "households" USING btree ("user_id");

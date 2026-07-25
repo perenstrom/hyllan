@@ -15,6 +15,13 @@
       "when": 1784989095033,
       "tag": "0001_wise_triathlon",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784990859406,
+      "tag": "0002_marvelous_northstar",
+      "breakpoints": true
     }
   ]
 }

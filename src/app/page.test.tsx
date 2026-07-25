@@ -1,10 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import Home from "./page";
+import { SignedOutHome } from "./signed-out-home";
 
-describe("Home", () => {
+describe("SignedOutHome", () => {
   it("renders the app name", () => {
-    render(<Home />);
+    render(<SignedOutHome />);
 
     expect(screen.getByRole("heading", { name: "Hyllan" })).toBeInTheDocument();
   });
