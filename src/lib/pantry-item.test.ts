@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  decrementQuantity,
   formatQuantity,
+  incrementQuantity,
   isPantryItemUnit,
   normalizePantryItemName,
   parsePantryItemInput,
@@ -88,6 +90,34 @@ describe("formatQuantity", () => {
 
   it("formats zero", () => {
     expect(formatQuantity("0", "count")).toBe("0");
+  });
+});
+
+describe("incrementQuantity", () => {
+  it("adds one to a whole number", () => {
+    expect(incrementQuantity("2")).toBe("3");
+  });
+
+  it("adds one to a decimal", () => {
+    expect(incrementQuantity("2.5")).toBe("3.5");
+  });
+});
+
+describe("decrementQuantity", () => {
+  it("subtracts one from a whole number", () => {
+    expect(decrementQuantity("2")).toBe("1");
+  });
+
+  it("subtracts one from a decimal", () => {
+    expect(decrementQuantity("2.5")).toBe("1.5");
+  });
+
+  it("floors at zero rather than going negative", () => {
+    expect(decrementQuantity("0")).toBe("0");
+  });
+
+  it("floors a fractional quantity below one at zero", () => {
+    expect(decrementQuantity("0.5")).toBe("0");
   });
 });
 

@@ -63,3 +63,56 @@ test("the pantry table and add-item form stay usable at a mobile width", async (
   await expect(page.getByText("Rice")).toBeVisible();
   await expect(page.getByRole("cell", { name: "2 kg" })).toBeVisible();
 });
+
+test("signed-in user can adjust, edit, and delete a pantry item", async ({
+  page,
+}) => {
+  const email = `e2e-items-crud-${Date.now()}@example.com`;
+  const password = "correct horse battery staple";
+
+  await page.goto("/signup");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign up" }).click();
+
+  await page.getByRole("link", { name: "+ Add item" }).click();
+  await page.getByLabel("Name").fill("Rice");
+  await page.getByLabel("Quantity").fill("2");
+  await page.getByLabel("Unit").selectOption("kg");
+  await page.getByRole("button", { name: "Add item" }).click();
+  await expect(page.getByRole("cell", { name: "2 kg" })).toBeVisible();
+
+  // Increment/decrement icon buttons adjust quantity without opening a form.
+  await page.getByRole("button", { name: "Increase Rice quantity" }).click();
+  await expect(page.getByRole("cell", { name: "3 kg" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Decrease Rice quantity" }).click();
+  await page.getByRole("button", { name: "Decrease Rice quantity" }).click();
+  await page.getByRole("button", { name: "Decrease Rice quantity" }).click();
+  await expect(page.getByRole("cell", { name: "0 kg" })).toBeVisible();
+  await expect(page.getByText("Out of stock")).toBeVisible();
+
+  // Decrementing further is blocked — the quantity never goes negative, and
+  // the control disables itself once there's nothing left to decrement.
+  await expect(
+    page.getByRole("button", { name: "Decrease Rice quantity" }),
+  ).toBeDisabled();
+
+  // Editing opens the same focused form, prefilled, and saving updates the item.
+  await page.getByRole("link", { name: "Edit Rice" }).click();
+  await expect(page.getByLabel("Name")).toHaveValue("Rice");
+  await expect(page.getByLabel("Quantity")).toHaveValue("0");
+  await expect(page.getByLabel("Unit")).toHaveValue("kg");
+
+  await page.getByLabel("Name").fill("Basmati rice");
+  await page.getByLabel("Quantity").fill("4");
+  await page.getByLabel("Unit").selectOption("g");
+  await page.getByRole("button", { name: "Save changes" }).click();
+
+  await expect(page.getByText("Basmati rice")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "4 g" })).toBeVisible();
+
+  // Deleting removes the item entirely.
+  await page.getByRole("button", { name: "Delete Basmati rice" }).click();
+  await expect(page.getByText("Your pantry is empty.")).toBeVisible();
+});

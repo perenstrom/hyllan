@@ -3,7 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getClaimsMock = vi.fn();
 const getHouseholdForUserMock = vi.fn();
 const addPantryItemMock = vi.fn();
+const incrementPantryItemQuantityMock = vi.fn();
+const decrementPantryItemQuantityMock = vi.fn();
+const deletePantryItemMock = vi.fn();
+const updatePantryItemMock = vi.fn();
 const redirectMock = vi.fn();
+const revalidatePathMock = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({ auth: { getClaims: getClaimsMock } }),
@@ -13,8 +18,15 @@ vi.mock("@/lib/household", () => ({
   getHouseholdForUser: getHouseholdForUserMock,
 }));
 
+class DuplicatePantryItemNameError extends Error {}
+
 vi.mock("@/lib/pantry-items", () => ({
   addPantryItem: addPantryItemMock,
+  incrementPantryItemQuantity: incrementPantryItemQuantityMock,
+  decrementPantryItemQuantity: decrementPantryItemQuantityMock,
+  deletePantryItem: deletePantryItemMock,
+  updatePantryItem: updatePantryItemMock,
+  DuplicatePantryItemNameError,
 }));
 
 // Next.js's real redirect() always throws to halt execution — mirror that
@@ -27,9 +39,14 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
+vi.mock("next/cache", () => ({
+  revalidatePath: revalidatePathMock,
+}));
+
 vi.mock("@/db/client", () => ({ db: {} }));
 
-const { addItem } = await import("./actions");
+const { addItem, decrementItem, deleteItem, editItem, incrementItem } =
+  await import("./actions");
 
 function formDataOf(fields: Record<string, string>) {
   const formData = new FormData();
@@ -106,5 +123,135 @@ describe("addItem", () => {
 
     expect(redirectMock).toHaveBeenCalledWith("/login");
     expect(addPantryItemMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("incrementItem / decrementItem / deleteItem", () => {
+  beforeEach(() => {
+    getClaimsMock.mockReset();
+    getHouseholdForUserMock.mockReset();
+    incrementPantryItemQuantityMock.mockReset();
+    decrementPantryItemQuantityMock.mockReset();
+    deletePantryItemMock.mockReset();
+    revalidatePathMock.mockReset();
+    redirectMock.mockReset();
+
+    getClaimsMock.mockResolvedValue({ data: { claims: { sub: "user-1" } } });
+    getHouseholdForUserMock.mockResolvedValue({ id: "household-1" });
+  });
+
+  it("increments the item within the signed-in user's household and revalidates the list", async () => {
+    await incrementItem("item-1");
+
+    expect(incrementPantryItemQuantityMock).toHaveBeenCalledExactlyOnceWith(
+      {},
+      "household-1",
+      "item-1",
+    );
+    expect(revalidatePathMock).toHaveBeenCalledWith("/");
+  });
+
+  it("decrements the item within the signed-in user's household and revalidates the list", async () => {
+    await decrementItem("item-1");
+
+    expect(decrementPantryItemQuantityMock).toHaveBeenCalledExactlyOnceWith(
+      {},
+      "household-1",
+      "item-1",
+    );
+    expect(revalidatePathMock).toHaveBeenCalledWith("/");
+  });
+
+  it("deletes the item within the signed-in user's household and revalidates the list", async () => {
+    await deleteItem("item-1");
+
+    expect(deletePantryItemMock).toHaveBeenCalledExactlyOnceWith(
+      {},
+      "household-1",
+      "item-1",
+    );
+    expect(revalidatePathMock).toHaveBeenCalledWith("/");
+  });
+
+  it("redirects to login when there is no session, without mutating anything", async () => {
+    getClaimsMock.mockResolvedValue({ data: null });
+
+    await expect(incrementItem("item-1")).rejects.toThrow(
+      "REDIRECT:/login",
+    );
+    expect(incrementPantryItemQuantityMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("editItem", () => {
+  beforeEach(() => {
+    getClaimsMock.mockReset();
+    getHouseholdForUserMock.mockReset();
+    updatePantryItemMock.mockReset();
+    redirectMock.mockReset();
+
+    getClaimsMock.mockResolvedValue({ data: { claims: { sub: "user-1" } } });
+    getHouseholdForUserMock.mockResolvedValue({ id: "household-1" });
+  });
+
+  it("updates the item within the signed-in user's household and redirects home", async () => {
+    updatePantryItemMock.mockResolvedValue({ id: "item-1" });
+
+    await expect(
+      editItem(
+        "item-1",
+        undefined,
+        formDataOf({ name: "Beans", quantity: "3", unit: "kg" }),
+      ),
+    ).rejects.toThrow("REDIRECT:/");
+
+    expect(updatePantryItemMock).toHaveBeenCalledExactlyOnceWith(
+      {},
+      "household-1",
+      "item-1",
+      { name: "Beans", quantity: "3", unit: "kg" },
+    );
+    expect(redirectMock).toHaveBeenCalledWith("/");
+  });
+
+  it("returns a validation error without touching the database", async () => {
+    const state = await editItem(
+      "item-1",
+      undefined,
+      formDataOf({ name: "", quantity: "2" }),
+    );
+
+    expect(state).toEqual({ error: "Name is required." });
+    expect(updatePantryItemMock).not.toHaveBeenCalled();
+  });
+
+  it("returns an error when the item doesn't belong to the signed-in user's household", async () => {
+    updatePantryItemMock.mockResolvedValue(undefined);
+
+    const state = await editItem(
+      "item-1",
+      undefined,
+      formDataOf({ name: "Beans", quantity: "3", unit: "kg" }),
+    );
+
+    expect(state).toEqual({ error: "Item not found." });
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a friendly error when the new name collides with another item", async () => {
+    updatePantryItemMock.mockRejectedValue(
+      new DuplicatePantryItemNameError(),
+    );
+
+    const state = await editItem(
+      "item-1",
+      undefined,
+      formDataOf({ name: "Beans", quantity: "3", unit: "kg" }),
+    );
+
+    expect(state).toEqual({
+      error: "You already have an item with that name.",
+    });
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,17 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { SignedInHome } from "./signed-in-home";
+// signed-in-home.tsx binds these server actions directly to form actions
+// (Next's documented pattern for passing extra args), so importing it pulls
+// in "@/db/client" transitively — mock the actions module the same way
+// add-item-form.test.tsx mocks "../actions" to avoid needing DATABASE_URL.
+vi.mock("./items/actions", () => ({
+  decrementItem: vi.fn(),
+  incrementItem: vi.fn(),
+  deleteItem: vi.fn(),
+}));
+
+const { SignedInHome } = await import("./signed-in-home");
 
 function itemRow(
   overrides: Partial<Parameters<typeof SignedInHome>[0]["items"][number]> = {},
@@ -63,5 +73,31 @@ describe("SignedInHome", () => {
       "href",
       "/items/new",
     );
+  });
+
+  it("renders increment/decrement/edit/delete controls per item", () => {
+    render(<SignedInHome items={[itemRow()]} />);
+
+    expect(
+      screen.getByRole("button", { name: "Increase Rice quantity" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Decrease Rice quantity" }),
+    ).toBeEnabled();
+    expect(screen.getByRole("link", { name: "Edit Rice" })).toHaveAttribute(
+      "href",
+      "/items/11111111-1111-1111-1111-111111111111/edit",
+    );
+    expect(
+      screen.getByRole("button", { name: "Delete Rice" }),
+    ).toBeInTheDocument();
+  });
+
+  it("disables the decrement control once an item is out of stock", () => {
+    render(<SignedInHome items={[itemRow({ quantity: "0" })]} />);
+
+    expect(
+      screen.getByRole("button", { name: "Decrease Rice quantity" }),
+    ).toBeDisabled();
   });
 });

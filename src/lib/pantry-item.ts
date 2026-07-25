@@ -40,6 +40,18 @@ export function formatQuantity(quantity: string, unit: PantryItemUnit): string {
   return unit === "count" ? amount : `${amount} ${unit}`;
 }
 
+export function incrementQuantity(quantity: string): string {
+  return (Number(quantity) + 1).toString();
+}
+
+// Floors at zero (PER-226) — a signed-in user can never drive a quantity
+// negative, regardless of the value already stored, mirroring the DB's
+// pantry_items_quantity_non_negative check.
+export function decrementQuantity(quantity: string): string {
+  const next = Number(quantity) - 1;
+  return next > 0 ? next.toString() : "0";
+}
+
 export type PantryItemFormInput = {
   name: string;
   quantity: string;
