@@ -60,5 +60,113 @@ services:
       timeout: 5s
       retries: 5
 
+  # Production-only services, brought up with `--profile production` (or
+  # COMPOSE_PROFILES=production) alongside db/auth above — see README's
+  # "Production deployment" section. Local dev runs the app on the host via
+  # `npm run dev` instead, so plain `docker compose up -d` is unaffected.
+  app:
+    profiles: ["production"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      auth:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3000/api/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  proxy:
+    profiles: ["production"]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+      auth:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+      AUTH_DOMAIN: ${AUTH_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - hyllan-caddy-data:/data
+      - hyllan-caddy-config:/config
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:2019/config/",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backup:
+    profiles: ["production"]
+    build:
+      context: ./docker/backup
+    restart: unless-stopped
+    # busybox crond calls setpgid on itself, which fails when it's PID 1
+    # ("setpgid: Operation not permitted") — Docker's built-in init keeps
+    # crond as a child process instead, avoiding that.
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+    # env_file passes through any RCLONE_CONFIG_<REMOTE>_* variables an
+    # operator adds to .env for their chosen off-server target, without
+    # compose.yaml needing to know the remote's name in advance.
+    env_file: .env
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_RCLONE_REMOTE: ${BACKUP_RCLONE_REMOTE:-}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+    volumes:
+      - hyllan-backups:/backups
+    healthcheck:
+      # crond alive, and (once backup.sh has run at least once) its last
+      # successful run isn't more than two scheduled runs old — a missing
+      # marker (nothing has run yet since deploy) counts as healthy, only a
+      # stale one doesn't.
+      test:
+        [
+          "CMD-SHELL",
+          "pgrep crond && ! find /backups/.last-success -mmin +2880 2>/dev/null | grep -q .",
+        ]
+      interval: 30m
+      timeout: 5s
+      retries: 3
+
 volumes:
   hyllan-db-data:
+  hyllan-caddy-data:
+  hyllan-caddy-config:
+  hyllan-backups:
