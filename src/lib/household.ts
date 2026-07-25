@@ -34,3 +34,17 @@ export async function createHouseholdForUser<
 
   return existing;
 }
+
+// Every signed-in user has exactly one household, auto-created at signup
+// (ADR 0002) — callers can trust the result rather than handling a "no
+// household yet" case.
+export async function getHouseholdForUser<
+  TQueryResult extends PgQueryResultHKT,
+>(db: Database<TQueryResult>, userId: string) {
+  const [household] = await db
+    .select()
+    .from(households)
+    .where(eq(households.userId, userId));
+
+  return household;
+}
