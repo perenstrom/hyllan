@@ -14,9 +14,11 @@ import { authUsers } from "./auth";
 
 export const households = pgTable("households", {
   id: uuid("id").primaryKey().defaultRandom(),
+  // Cascades so that deleting the GoTrue user row immediately removes the
+  // household (and, transitively, its pantry items) — ADR 0002.
   userId: uuid("user_id")
     .notNull()
-    .references(() => authUsers.id),
+    .references(() => authUsers.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

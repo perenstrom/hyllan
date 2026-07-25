@@ -20,8 +20,8 @@ services:
 
   auth:
     # Standalone GoTrue only — not the full Supabase bundle (Kong/PostgREST/
-    # Storage/Realtime/Studio), pointed at Hyllan's own Postgres. See
-    # docs/research/auth-library.md.
+    # Storage/Realtime/Studio) — pointed at Hyllan's own Postgres, per
+    # PER-213's decision (see PER-222's "Auth" implementation decision).
     image: supabase/gotrue:v2.189.0
     restart: unless-stopped
     depends_on:
