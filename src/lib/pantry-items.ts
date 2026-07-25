@@ -27,8 +27,16 @@ export async function listPantryItems<TQueryResult extends PgQueryResultHKT>(
     .orderBy(pantryItems.createdAt);
 }
 
-// Scoped to householdId so an item id from another household (e.g. a
-// tampered request) can never be read, adjusted, edited, or deleted.
+// Scopes a query to one item within one household, so an item id from
+// another household (e.g. a tampered request) can never be read, adjusted,
+// edited, or deleted.
+function scopedToItem(householdId: string, itemId: string) {
+  return and(
+    eq(pantryItems.householdId, householdId),
+    eq(pantryItems.id, itemId),
+  );
+}
+
 export async function getPantryItem<TQueryResult extends PgQueryResultHKT>(
   db: Database<TQueryResult>,
   householdId: string,
@@ -37,9 +45,7 @@ export async function getPantryItem<TQueryResult extends PgQueryResultHKT>(
   const [item] = await db
     .select()
     .from(pantryItems)
-    .where(
-      and(eq(pantryItems.householdId, householdId), eq(pantryItems.id, itemId)),
-    );
+    .where(scopedToItem(householdId, itemId));
 
   return item;
 }
@@ -142,6 +148,11 @@ export async function addPantryItem<TQueryResult extends PgQueryResultHKT>(
   }
 }
 
+// Reads the current row with a row lock (SELECT ... FOR UPDATE) and writes
+// the adjusted quantity in the same transaction, so two concurrent
+// increment/decrement clicks on the same item can't race — the second
+// transaction blocks until the first commits, rather than both computing
+// from the same stale quantity and one update getting lost.
 async function adjustPantryItemQuantity<
   TQueryResult extends PgQueryResultHKT,
 >(
@@ -150,20 +161,24 @@ async function adjustPantryItemQuantity<
   itemId: string,
   adjust: (quantity: string) => string,
 ) {
-  const current = await getPantryItem(db, householdId, itemId);
-  if (!current) {
-    return undefined;
-  }
+  return db.transaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(pantryItems)
+      .where(scopedToItem(householdId, itemId))
+      .for("update");
+    if (!current) {
+      return undefined;
+    }
 
-  const [updated] = await db
-    .update(pantryItems)
-    .set({ quantity: adjust(current.quantity), updatedAt: new Date() })
-    .where(
-      and(eq(pantryItems.householdId, householdId), eq(pantryItems.id, itemId)),
-    )
-    .returning();
+    const [updated] = await tx
+      .update(pantryItems)
+      .set({ quantity: adjust(current.quantity), updatedAt: new Date() })
+      .where(scopedToItem(householdId, itemId))
+      .returning();
 
-  return updated;
+    return updated;
+  });
 }
 
 // Increment/decrement icon buttons (ADR 0004, PER-226) adjust by exactly
@@ -203,12 +218,7 @@ export async function updatePantryItem<TQueryResult extends PgQueryResultHKT>(
         unit: input.unit,
         updatedAt: new Date(),
       })
-      .where(
-        and(
-          eq(pantryItems.householdId, householdId),
-          eq(pantryItems.id, itemId),
-        ),
-      )
+      .where(scopedToItem(householdId, itemId))
       .returning();
 
     return updated;
@@ -227,9 +237,7 @@ export async function deletePantryItem<TQueryResult extends PgQueryResultHKT>(
 ) {
   const [deleted] = await db
     .delete(pantryItems)
-    .where(
-      and(eq(pantryItems.householdId, householdId), eq(pantryItems.id, itemId)),
-    )
+    .where(scopedToItem(householdId, itemId))
     .returning();
 
   return deleted;
