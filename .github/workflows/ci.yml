@@ -8,6 +8,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # `next build` evaluates route handler modules (incl. src/db/client.ts)
+      # while collecting page data. The postgres.js driver only connects
+      # lazily on first query, so a syntactically valid but unreachable URL
+      # is enough — no real database is needed in CI for this build step.
+      DATABASE_URL: postgres://placeholder:placeholder@localhost:5432/placeholder
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
