@@ -1,7 +1,25 @@
+# Docker's default json-file log driver doesn't rotate on its own, so every
+# service below bounds it explicitly — a small, cheap guard against an
+# unbounded log filling the VPS disk.
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     image: postgres:17-alpine
     restart: unless-stopped
+    # log_destination stays at its stderr default (captured by Docker's log
+    # driver below, same as every other service); these two just turn on
+    # slow-query and lock-contention visibility on top of that default.
+    command:
+      - postgres
+      - -c
+      - log_min_duration_statement=250
+      - -c
+      - log_lock_waits=on
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -17,6 +35,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    logging: *default-logging
 
   auth:
     # Standalone GoTrue only — not the full Supabase bundle (Kong/PostgREST/
@@ -59,6 +78,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    logging: *default-logging
 
   # Production-only services, brought up with `--profile production` (or
   # COMPOSE_PROFILES=production) alongside db/auth above — see README's
@@ -69,6 +89,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Must be a build arg, not a runtime env var — see Dockerfile.
+        NEXT_PUBLIC_GLITCHTIP_DSN: ${NEXT_PUBLIC_GLITCHTIP_DSN:-}
     restart: unless-stopped
     depends_on:
       db:
@@ -77,6 +100,8 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      GLITCHTIP_DSN: ${GLITCHTIP_DSN:-}
     healthcheck:
       test:
         [
@@ -91,6 +116,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    logging: *default-logging
 
   proxy:
     profiles: ["production"]
@@ -125,6 +151,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    logging: *default-logging
 
   backup:
     profiles: ["production"]
@@ -164,6 +191,7 @@ services:
       interval: 30m
       timeout: 5s
       retries: 3
+    logging: *default-logging
 
 volumes:
   hyllan-db-data:

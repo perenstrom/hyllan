@@ -91,6 +91,41 @@ Deployment config here is reviewed manually rather than covered by automated
 tests, per the project's testing strategy
 (`docs/research/testing-observability-strategy.md`).
 
+## Observability
+
+- **Application logs** — [Pino](https://github.com/pinojs/pino) (`src/lib/logger.ts`),
+  JSON to stdout, captured by Docker's `json-file` log driver. `LOG_LEVEL`
+  (default `info`) controls verbosity.
+- **Postgres logs** — left at the `stderr` default (so `docker compose logs
+  db` shows them like every other service), with `log_min_duration_statement`
+  and `log_lock_waits` turned on (`compose.yaml`'s `db.command`) for
+  slow-query and lock-contention visibility.
+- **Caddy access logs** — left at Caddy's own default (structured JSON to
+  stderr when not attached to a terminal, i.e. under Docker) — no extra
+  config.
+- **Docker log growth** — every service in `compose.yaml` sets a `max-size`/
+  `max-file` `logging` block (`x-default-logging`), since the default
+  `json-file` driver doesn't rotate on its own.
+- **Error tracking** — unhandled errors are reported to a self-hosted
+  [GlitchTip](https://glitchtip.com) instance (a lighter, Sentry-API-
+  compatible alternative to self-hosted Sentry — see
+  `docs/research/testing-observability-strategy.md` §6) via the standard
+  `@sentry/nextjs` SDK and Next.js's `onRequestError` instrumentation hook
+  (`src/instrumentation.ts`, `src/instrumentation-client.ts`,
+  `src/sentry.server.config.ts`, `src/sentry.edge.config.ts`). Deploying
+  GlitchTip itself is the operator's concern — set `GLITCHTIP_DSN` (server)
+  and `NEXT_PUBLIC_GLITCHTIP_DSN` (client, must also be passed as a Docker
+  build arg — see `Dockerfile`/`compose.yaml`'s `app.build.args`) to your
+  GlitchTip project's DSN once it's deployed. Both unset (the `.env.example`
+  default) runs with error reporting disabled — `Sentry.init()` with no DSN
+  is a documented no-op. Source-map upload is intentionally disabled
+  (`next.config.ts`'s `sourcemaps.disable`) since it targets Sentry's own
+  release API, which GlitchTip doesn't implement.
+- **Uptime monitoring** — once GlitchTip is deployed, configure its built-in
+  uptime/heartbeat monitor against the deployed app's `/api/health` endpoint
+  (`https://$DOMAIN/api/health`) rather than standing up a separate uptime
+  tool — see GlitchTip's own docs for adding a check.
+
 ## Scripts
 
 - `npm run dev` — start the dev server
