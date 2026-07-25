@@ -131,6 +131,10 @@ services:
     build:
       context: ./docker/backup
     restart: unless-stopped
+    # busybox crond calls setpgid on itself, which fails when it's PID 1
+    # ("setpgid: Operation not permitted") — Docker's built-in init keeps
+    # crond as a child process instead, avoiding that.
+    init: true
     depends_on:
       db:
         condition: service_healthy
@@ -148,8 +152,16 @@ services:
     volumes:
       - hyllan-backups:/backups
     healthcheck:
-      test: ["CMD", "pgrep", "crond"]
-      interval: 30s
+      # crond alive, and (once backup.sh has run at least once) its last
+      # successful, shipped-off-server run isn't more than two scheduled
+      # runs old — a missing marker (nothing has run yet since deploy)
+      # counts as healthy, only a stale one doesn't.
+      test:
+        [
+          "CMD-SHELL",
+          "pgrep crond && ! find /backups/.last-success -mmin +2880 2>/dev/null | grep -q .",
+        ]
+      interval: 30m
       timeout: 5s
       retries: 3
 
