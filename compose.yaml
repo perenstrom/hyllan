@@ -153,9 +153,9 @@ services:
       - hyllan-backups:/backups
     healthcheck:
       # crond alive, and (once backup.sh has run at least once) its last
-      # successful, shipped-off-server run isn't more than two scheduled
-      # runs old — a missing marker (nothing has run yet since deploy)
-      # counts as healthy, only a stale one doesn't.
+      # successful run isn't more than two scheduled runs old — a missing
+      # marker (nothing has run yet since deploy) counts as healthy, only a
+      # stale one doesn't.
       test:
         [
           "CMD-SHELL",
