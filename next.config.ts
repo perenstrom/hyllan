@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Deployable as a self-contained `.next/standalone` server image — see
+  // Dockerfile.
+  output: "standalone",
   async rewrites() {
     // @supabase/ssr's clients always call `${NEXT_PUBLIC_SUPABASE_URL}/auth/v1/...`
     // (Kong's job in the full Supabase stack is normally to strip that
