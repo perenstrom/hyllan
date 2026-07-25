@@ -30,6 +30,8 @@ Open [http://localhost:3000](http://localhost:3000). [http://localhost:3000/api/
 
 GoTrue runs standalone (not the full Supabase bundle) against the same Postgres instance, under its own `supabase_auth_admin` role — see `docker/postgres-init/`. Its `auth.users` table is created and migrated by GoTrue itself; Hyllan's own schema only references it via foreign key (`src/db/schema/auth.ts`) and never writes to it.
 
+The app talks to GoTrue via `@supabase/ssr` (`src/lib/supabase/`), with `NEXT_PUBLIC_SUPABASE_URL` pointing at the app's own origin rather than GoTrue directly: since standalone GoTrue has no Kong in front of it, `next.config.ts` rewrites `/auth/v1/*` to `GOTRUE_API_EXTERNAL_URL`, playing Kong's usual path-prefixing role. `src/proxy.ts` refreshes the session (rotating GoTrue's refresh token) on every request — required because Server Components can only read cookies, not set them.
+
 ## Database
 
 - `npm run db:generate` — diff `src/db/schema/app.ts` against the existing migrations and write a new one under `drizzle/`
@@ -42,6 +44,7 @@ GoTrue runs standalone (not the full Supabase bundle) against the same Postgres 
 - `npm run start` — run the production build
 - `npm run lint` — ESLint
 - `npm run typecheck` — TypeScript, no emit
-- `npm test` — run tests once (Vitest)
+- `npm test` — run unit/integration tests once (Vitest, including PGlite-backed integration tests)
 - `npm run test:watch` — Vitest in watch mode
+- `npm run test:e2e` — Playwright E2E tests; builds and runs a production server, so the Docker stack must be up and migrations applied first
 - `npm run format` / `npm run format:check` — Prettier

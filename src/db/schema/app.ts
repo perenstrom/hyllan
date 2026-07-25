@@ -12,20 +12,29 @@ import {
 
 import { authUsers } from "./auth";
 
-export const households = pgTable("households", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  // Cascades so that deleting the GoTrue user row immediately removes the
-  // household (and, transitively, its pantry items) — ADR 0002.
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => authUsers.id, { onDelete: "cascade" }),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const households = pgTable(
+  "households",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Cascades so that deleting the GoTrue user row immediately removes the
+    // household (and, transitively, its pantry items) — ADR 0002.
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // A household is strictly single-user (ADR 0002) — this is what lets
+    // signup's household-auto-creation be a safe no-op on retry rather than
+    // risking a duplicate household per user.
+    uniqueIndex("households_user_id_unique").on(table.userId),
+  ],
+);
 
 export const pantryItemUnitEnum = pgEnum("pantry_item_unit", [
   "count",
