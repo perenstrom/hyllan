@@ -11,6 +11,13 @@ vi.mock("./items/actions", () => ({
   deleteItem: vi.fn(),
 }));
 
+// The header's account menu binds these the same way — deleteAccount pulls
+// in "@/db/client" transitively too, so it needs the same treatment.
+vi.mock("./actions", () => ({
+  signOut: vi.fn(),
+  deleteAccount: vi.fn(),
+}));
+
 const { SignedInHome } = await import("./signed-in-home");
 
 function itemRow(

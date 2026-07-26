@@ -69,3 +69,21 @@ export function TrashIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function UserIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <circle cx="8" cy="5.5" r="2.5" />
+      <path d="M2.5 14c0-2.9 2.5-5 5.5-5s5.5 2.1 5.5 5" />
+    </svg>
+  );
+}

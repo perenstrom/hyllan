@@ -1,15 +1,14 @@
-import { redirect } from "next/navigation";
-
 import { AddItemForm } from "./add-item-form";
-import { createClient } from "@/lib/supabase/server";
+import { AppHeader } from "@/app/app-header";
+import { requireSessionClaims } from "@/lib/auth";
 
 export default async function NewItemPage() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
+  await requireSessionClaims();
 
-  if (!data?.claims) {
-    redirect("/login");
-  }
-
-  return <AddItemForm />;
+  return (
+    <div className="flex flex-1 flex-col">
+      <AppHeader />
+      <AddItemForm />
+    </div>
+  );
 }
