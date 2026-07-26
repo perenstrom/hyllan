@@ -14,6 +14,7 @@ import {
   getPantryItem,
   incrementPantryItemQuantity,
   listPantryItems,
+  PantryItemUnitMismatchError,
   updatePantryItem,
 } from "./pantry-items";
 
@@ -92,6 +93,73 @@ describe("pantry-items", () => {
     const rows = await listPantryItems(db, householdId);
     expect(rows).toHaveLength(1);
     expect(rows[0].name).toBe("Rice");
+  });
+
+  it("rejects the add when the name matches but the unit differs, leaving the existing item unchanged", async () => {
+    await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+    });
+
+    await expect(
+      addPantryItem(db, householdId, {
+        name: "RICE",
+        quantity: "3",
+        unit: "bag",
+      }),
+    ).rejects.toThrow(PantryItemUnitMismatchError);
+
+    const rows = await listPantryItems(db, householdId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ name: "Rice", quantity: "2", unit: "kg" });
+  });
+
+  it("names the existing item's name and unit on the mismatch error", async () => {
+    await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+    });
+
+    await expect(
+      addPantryItem(db, householdId, {
+        name: "rice",
+        quantity: "3",
+        unit: "bag",
+      }),
+    ).rejects.toMatchObject({ itemName: "Rice", unit: "kg" });
+  });
+
+  it("still enforces the unit-match check when two adds under a brand-new name race for the insert", async () => {
+    const [a, b] = await Promise.allSettled([
+      addPantryItem(db, householdId, {
+        name: "Oats",
+        quantity: "2",
+        unit: "kg",
+      }),
+      addPantryItem(db, householdId, {
+        name: "Oats",
+        quantity: "3",
+        unit: "bag",
+      }),
+    ]);
+
+    // Whichever add wins the race gets inserted; the loser retries as a
+    // merge against a differently-unit'd row and must still be rejected
+    // rather than silently summed — so exactly one of the two survives.
+    const succeeded = a.status === "fulfilled" ? a : b.status === "fulfilled" ? b : null;
+    const failed = a.status === "rejected" ? a : b.status === "rejected" ? b : null;
+    if (!succeeded || !failed) {
+      throw new Error("expected exactly one add to succeed and one to fail");
+    }
+
+    expect(failed.reason).toBeInstanceOf(PantryItemUnitMismatchError);
+
+    const rows = await listPantryItems(db, householdId);
+    const oats = rows.filter((row) => row.name === "Oats");
+    expect(oats).toHaveLength(1);
+    expect(oats[0].quantity).toBe(succeeded.value.quantity);
   });
 
   it("does not fold names for a different household", async () => {
