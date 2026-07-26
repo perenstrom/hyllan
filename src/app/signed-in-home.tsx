@@ -45,6 +45,14 @@ const ACTION_BUTTON_CLASS =
   "flex h-8 w-8 items-center justify-center rounded border border-zinc-300 text-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300";
 const ACTION_ICON_CLASS = "h-4 w-4";
 
+// Red tint, chosen over the page background alone (ADR 0004, PER-236) so
+// out-of-stock rows are distinguishable without a mounting/unmounting label
+// that would shift layout. zinc-600/zinc-300 replaces the prior
+// zinc-400/zinc-600 muted text, which had the shades swapped and failed
+// WCAG AA contrast against the plain background.
+const OUT_OF_STOCK_ROW_CLASS =
+  "bg-red-100 text-zinc-600 dark:bg-red-950 dark:text-zinc-300";
+
 export function SignedInHome({ items }: Props) {
   const [optimisticItems, addOptimisticUpdate] = useOptimistic(
     items,
@@ -104,18 +112,14 @@ export function SignedInHome({ items }: Props) {
                     <tr
                       key={item.id}
                       className={`border-b border-zinc-100 last:border-0 dark:border-zinc-900 ${
-                        outOfStock ? "text-zinc-400 dark:text-zinc-600" : ""
+                        outOfStock ? OUT_OF_STOCK_ROW_CLASS : ""
                       }`}
                     >
                       <td className="px-4 py-2">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
-                          <span>{item.name}</span>
-                          {outOfStock && (
-                            <span className="text-xs uppercase tracking-wide">
-                              Out of stock
-                            </span>
-                          )}
-                        </div>
+                        {item.name}
+                        {outOfStock && (
+                          <span className="sr-only"> Out of stock</span>
+                        )}
                       </td>
                       <td className="px-4 py-2">
                         {formatQuantity(item.quantity, item.unit)}

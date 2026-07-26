@@ -71,11 +71,20 @@ test("the pantry table and add-item form stay usable at a mobile width", async (
   await page.getByLabel("Unit").selectOption("kg");
   await page.getByRole("button", { name: "Add item" }).click();
 
-  // The name/out-of-stock stack and horizontal-scroll fallback (ADR 0004)
-  // both mean the row stays reachable even though the table is wider than
-  // the 375px viewport.
+  // The horizontal-scroll fallback (ADR 0004) means the row stays reachable
+  // even though the table is wider than the 375px viewport.
   await expect(page.getByText("Rice")).toBeVisible();
   await expect(page.getByRole("cell", { name: "2 kg" })).toBeVisible();
+
+  // Crossing zero (PER-236) must not shift the row's height at this
+  // stacked/narrow breakpoint either — the out-of-stock label is
+  // screen-reader-only rather than a second visible line under the name.
+  const rowBefore = await page.getByRole("row", { name: /Rice/ }).boundingBox();
+  await clickAndAwaitAction(page, "Decrease Rice quantity");
+  await clickAndAwaitAction(page, "Decrease Rice quantity");
+  await expect(page.getByRole("cell", { name: "0 kg" })).toBeVisible();
+  const rowAfter = await page.getByRole("row", { name: /Rice/ }).boundingBox();
+  expect(rowAfter?.height).toBe(rowBefore?.height);
 });
 
 test("signed-in user can adjust, edit, and delete a pantry item", async ({
@@ -100,11 +109,38 @@ test("signed-in user can adjust, edit, and delete a pantry item", async ({
   await clickAndAwaitAction(page, "Increase Rice quantity");
   await expect(page.getByRole("cell", { name: "3 kg" })).toBeVisible();
 
+  // Crossing zero (PER-236) must not shift layout: capture the row height and
+  // Name column width beforehand so we can assert they're unchanged after.
+  const rowBefore = await page.getByRole("row", { name: /Rice/ }).boundingBox();
+  const nameColumnBefore = await page
+    .getByRole("columnheader", { name: "Name" })
+    .boundingBox();
+
   await clickAndAwaitAction(page, "Decrease Rice quantity");
   await clickAndAwaitAction(page, "Decrease Rice quantity");
   await clickAndAwaitAction(page, "Decrease Rice quantity");
   await expect(page.getByRole("cell", { name: "0 kg" })).toBeVisible();
-  await expect(page.getByText("Out of stock")).toBeVisible();
+  // The label is screen-reader-only (no visible text mount/unmount, to avoid
+  // layout shift): attached to the DOM, but Tailwind's sr-only clips it to a
+  // 1x1px box, so it takes up no visible space. (Playwright's toBeVisible()
+  // only checks for a non-empty box and would report a false positive here,
+  // since 1x1px isn't empty — hence asserting the box size directly.) The
+  // row's red tint is the sighted-user signal instead.
+  const outOfStockLabel = page.getByText("Out of stock");
+  await expect(outOfStockLabel).toBeAttached();
+  const labelBox = await outOfStockLabel.boundingBox();
+  expect(labelBox?.width).toBeLessThanOrEqual(1);
+  expect(labelBox?.height).toBeLessThanOrEqual(1);
+  await expect(page.getByRole("row", { name: /Rice/ })).toHaveClass(
+    /bg-red-100/,
+  );
+
+  const rowAfter = await page.getByRole("row", { name: /Rice/ }).boundingBox();
+  const nameColumnAfter = await page
+    .getByRole("columnheader", { name: "Name" })
+    .boundingBox();
+  expect(rowAfter?.height).toBe(rowBefore?.height);
+  expect(nameColumnAfter?.width).toBe(nameColumnBefore?.width);
 
   // Decrementing further is blocked — the quantity never goes negative, and
   // the control disables itself once there's nothing left to decrement.
