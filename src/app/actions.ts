@@ -20,6 +20,10 @@ export async function deleteAccount() {
     redirect("/login");
   }
 
+  // The row is gone before signOut() runs, so GoTrue's logout call 404s —
+  // auth-js treats that as an ignorable error and still clears the local
+  // session/cookies, so the user ends up signed out either way (verified by
+  // e2e/account.spec.ts's re-login-fails assertion after deletion).
   await deleteUserAccount(db, data.claims.sub);
   await supabase.auth.signOut();
   redirect("/login");
