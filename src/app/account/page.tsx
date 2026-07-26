@@ -1,16 +1,9 @@
-import { redirect } from "next/navigation";
-
 import { AccountActions } from "./account-actions";
 import { AppHeader } from "@/app/app-header";
-import { createClient } from "@/lib/supabase/server";
+import { requireSessionClaims } from "@/lib/auth";
 
 export default async function AccountPage() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
-
-  if (!data?.claims) {
-    redirect("/login");
-  }
+  await requireSessionClaims();
 
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 font-sans dark:bg-black">
