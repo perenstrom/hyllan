@@ -36,6 +36,7 @@ The app talks to GoTrue via `@supabase/ssr` (`src/lib/supabase/`), with `NEXT_PU
 
 - `npm run db:generate` — diff `src/db/schema/app.ts` against the existing migrations and write a new one under `drizzle/`
 - `npm run db:migrate` — apply pending migrations to `DATABASE_URL`
+- `npm run db:seed` — dev-only: creates a `dev@example.com` / `development` account (via GoTrue's `/signup`, same as a real signup) with a household and a handful of pantry items, so there's something to look at right after `npm run dev`. Safe to re-run — it skips item seeding if the account already has items.
 
 ## Production deployment
 
