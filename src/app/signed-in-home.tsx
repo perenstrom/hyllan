@@ -1,10 +1,17 @@
+"use client";
+
 import Link from "next/link";
+import { useOptimistic } from "react";
 
 import { AppHeader } from "./app-header";
 import { MinusIcon, PencilIcon, PlusIcon, TrashIcon } from "./icons";
 import { decrementItem, deleteItem, incrementItem } from "./items/actions";
 import type { pantryItems } from "@/db/schema";
-import { formatQuantity } from "@/lib/pantry-item";
+import {
+  decrementQuantity,
+  formatQuantity,
+  incrementQuantity,
+} from "@/lib/pantry-item";
 
 type PantryItemRow = typeof pantryItems.$inferSelect;
 
@@ -12,12 +19,48 @@ type Props = {
   items: PantryItemRow[];
 };
 
+type QuantityUpdate = { itemId: string; type: "increment" | "decrement" };
+
+// Mirrors the server's clamp (PER-226) so the optimistic value never
+// predicts a decrement below zero that the server would then correct.
+function applyQuantityUpdate(
+  items: PantryItemRow[],
+  update: QuantityUpdate,
+): PantryItemRow[] {
+  return items.map((item) =>
+    item.id === update.itemId
+      ? {
+          ...item,
+          quantity:
+            update.type === "increment"
+              ? incrementQuantity(item.quantity)
+              : decrementQuantity(item.quantity),
+        }
+      : item,
+  );
+}
+
 // 32px touch target per ADR 0004.
 const ACTION_BUTTON_CLASS =
   "flex h-8 w-8 items-center justify-center rounded border border-zinc-300 text-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300";
 const ACTION_ICON_CLASS = "h-4 w-4";
 
 export function SignedInHome({ items }: Props) {
+  const [optimisticItems, addOptimisticUpdate] = useOptimistic(
+    items,
+    applyQuantityUpdate,
+  );
+
+  async function handleIncrement(itemId: string) {
+    addOptimisticUpdate({ itemId, type: "increment" });
+    await incrementItem(itemId);
+  }
+
+  async function handleDecrement(itemId: string) {
+    addOptimisticUpdate({ itemId, type: "decrement" });
+    await decrementItem(itemId);
+  }
+
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 font-sans dark:bg-black">
       <AppHeader />
@@ -34,7 +77,7 @@ export function SignedInHome({ items }: Props) {
           </Link>
         </div>
 
-        {items.length === 0 ? (
+        {optimisticItems.length === 0 ? (
           <p className="flex flex-1 items-center justify-center text-lg text-zinc-600 dark:text-zinc-400">
             Your pantry is empty.
           </p>
@@ -55,7 +98,7 @@ export function SignedInHome({ items }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => {
+                {optimisticItems.map((item) => {
                   const outOfStock = Number(item.quantity) === 0;
                   return (
                     <tr
@@ -79,7 +122,7 @@ export function SignedInHome({ items }: Props) {
                       </td>
                       <td className="px-4 py-2">
                         <div className="flex items-center gap-1.5">
-                          <form action={decrementItem.bind(null, item.id)}>
+                          <form action={handleDecrement.bind(null, item.id)}>
                             <button
                               type="submit"
                               disabled={outOfStock}
@@ -89,7 +132,7 @@ export function SignedInHome({ items }: Props) {
                               <MinusIcon className={ACTION_ICON_CLASS} />
                             </button>
                           </form>
-                          <form action={incrementItem.bind(null, item.id)}>
+                          <form action={handleIncrement.bind(null, item.id)}>
                             <button
                               type="submit"
                               aria-label={`Increase ${item.name} quantity`}
