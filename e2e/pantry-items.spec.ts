@@ -1,4 +1,18 @@
-import { expect, test } from "@playwright/test";
+import { expect, Page, test } from "@playwright/test";
+
+// The increment/decrement buttons (PER-231) update the displayed quantity
+// optimistically, before the underlying server action's request completes —
+// so clicking one no longer doubles as a sync barrier the way it used to.
+// Steps that depend on confirmed server state (e.g. a fresh page load)
+// must wait for the action's own response instead of the (now decoupled)
+// display update.
+async function clickAndAwaitAction(page: Page, name: string) {
+  const responsePromise = page.waitForResponse(
+    (response) => response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name }).click();
+  await responsePromise;
+}
 
 test("signed-in user can add a pantry item, and adding a duplicate name increments quantity", async ({
   page,
@@ -83,12 +97,12 @@ test("signed-in user can adjust, edit, and delete a pantry item", async ({
   await expect(page.getByRole("cell", { name: "2 kg" })).toBeVisible();
 
   // Increment/decrement icon buttons adjust quantity without opening a form.
-  await page.getByRole("button", { name: "Increase Rice quantity" }).click();
+  await clickAndAwaitAction(page, "Increase Rice quantity");
   await expect(page.getByRole("cell", { name: "3 kg" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Decrease Rice quantity" }).click();
-  await page.getByRole("button", { name: "Decrease Rice quantity" }).click();
-  await page.getByRole("button", { name: "Decrease Rice quantity" }).click();
+  await clickAndAwaitAction(page, "Decrease Rice quantity");
+  await clickAndAwaitAction(page, "Decrease Rice quantity");
+  await clickAndAwaitAction(page, "Decrease Rice quantity");
   await expect(page.getByRole("cell", { name: "0 kg" })).toBeVisible();
   await expect(page.getByText("Out of stock")).toBeVisible();
 
