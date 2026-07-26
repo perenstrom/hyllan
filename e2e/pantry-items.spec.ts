@@ -100,11 +100,32 @@ test("signed-in user can adjust, edit, and delete a pantry item", async ({
   await clickAndAwaitAction(page, "Increase Rice quantity");
   await expect(page.getByRole("cell", { name: "3 kg" })).toBeVisible();
 
+  // Crossing zero (PER-236) must not shift layout: capture the row height and
+  // Name column width beforehand so we can assert they're unchanged after.
+  const rowBefore = await page.getByRole("row", { name: /Rice/ }).boundingBox();
+  const nameColumnBefore = await page
+    .getByRole("columnheader", { name: "Name" })
+    .boundingBox();
+
   await clickAndAwaitAction(page, "Decrease Rice quantity");
   await clickAndAwaitAction(page, "Decrease Rice quantity");
   await clickAndAwaitAction(page, "Decrease Rice quantity");
   await expect(page.getByRole("cell", { name: "0 kg" })).toBeVisible();
-  await expect(page.getByText("Out of stock")).toBeVisible();
+  // The label is screen-reader-only (no visible text mount/unmount, to avoid
+  // layout shift), so it's attached to the DOM but not visible; the row's
+  // red tint is the sighted-user signal instead.
+  await expect(page.getByText("Out of stock")).toBeAttached();
+  await expect(page.getByText("Out of stock")).not.toBeVisible();
+  await expect(page.getByRole("row", { name: /Rice/ })).toHaveClass(
+    /bg-red-100/,
+  );
+
+  const rowAfter = await page.getByRole("row", { name: /Rice/ }).boundingBox();
+  const nameColumnAfter = await page
+    .getByRole("columnheader", { name: "Name" })
+    .boundingBox();
+  expect(rowAfter?.height).toBe(rowBefore?.height);
+  expect(nameColumnAfter?.width).toBe(nameColumnBefore?.width);
 
   // Decrementing further is blocked — the quantity never goes negative, and
   // the control disables itself once there's nothing left to decrement.

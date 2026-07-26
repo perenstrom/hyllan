@@ -70,17 +70,26 @@ describe("SignedInHome", () => {
     expect(screen.getByRole("cell", { name: "6" })).toBeInTheDocument();
   });
 
-  it("keeps a zero-quantity item visible, labeled out of stock", () => {
+  it("keeps a zero-quantity item visible, with a screen-reader-only out-of-stock label", () => {
     render(<SignedInHome items={[itemRow({ quantity: "0" })]} />);
 
     expect(screen.getByText("Rice")).toBeInTheDocument();
-    expect(screen.getByText("Out of stock")).toBeInTheDocument();
+    expect(screen.getByText("Out of stock")).toHaveClass("sr-only");
   });
 
-  it("does not label an in-stock item as out of stock", () => {
+  it("tints an out-of-stock row's background instead of showing a visible label", () => {
+    render(<SignedInHome items={[itemRow({ quantity: "0" })]} />);
+
+    const row = screen.getByText("Rice").closest("tr");
+    expect(row).toHaveClass("bg-red-100", "dark:bg-red-950");
+  });
+
+  it("does not label or tint an in-stock item as out of stock", () => {
     render(<SignedInHome items={[itemRow()]} />);
 
     expect(screen.queryByText("Out of stock")).not.toBeInTheDocument();
+    const row = screen.getByText("Rice").closest("tr");
+    expect(row).not.toHaveClass("bg-red-100");
   });
 
   it("links the add-item action to the focused form", () => {
@@ -173,7 +182,7 @@ describe("SignedInHome", () => {
       screen.getByRole("button", { name: "Decrease Rice quantity" }),
     );
 
-    expect(await screen.findByText("Out of stock")).toBeInTheDocument();
+    expect(await screen.findByText("Out of stock")).toHaveClass("sr-only");
 
     resolveDecrement();
   });
