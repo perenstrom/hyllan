@@ -3,7 +3,7 @@ import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/db/schema";
 import { pantryItems } from "@/db/schema";
-import type { PantryItemFormInput } from "./pantry-item";
+import type { PantryItemFormInput, PantryItemUnit } from "./pantry-item";
 import {
   decrementQuantity,
   incrementQuantity,
@@ -52,13 +52,36 @@ export async function getPantryItem<TQueryResult extends PgQueryResultHKT>(
 
 export type AddPantryItemInput = PantryItemFormInput;
 
+// Thrown instead of merging when an add's name matches an existing item but
+// its unit doesn't (ADR 0001) — units carry no conversion behavior, so
+// summing across units would produce a meaningless total. Carries the
+// existing item's name and unit so the caller can tell the user how to
+// resubmit.
+export class PantryItemUnitMismatchError extends Error {
+  constructor(
+    public readonly itemName: string,
+    public readonly unit: PantryItemUnit,
+  ) {
+    super();
+  }
+}
+
+function matchesNameInHousehold(householdId: string, normalizedName: string) {
+  return and(
+    eq(pantryItems.householdId, householdId),
+    eq(sql`lower(${pantryItems.name})`, normalizedName),
+  );
+}
+
 // Unit carries no conversion behavior (CONTEXT.md) — incrementing an
-// existing item only ever adds the raw quantity and leaves its original
-// unit in place, ignoring whatever unit this particular add specified.
+// existing item only happens when the add's unit matches the existing
+// item's unit; a name match with a different unit rejects the add (ADR
+// 0001) rather than summing across incompatible units.
 async function incrementIfExists<TQueryResult extends PgQueryResultHKT>(
   db: Database<TQueryResult>,
   householdId: string,
   normalizedName: string,
+  unit: PantryItemUnit,
   quantity: string,
 ) {
   const [updated] = await db
@@ -69,13 +92,26 @@ async function incrementIfExists<TQueryResult extends PgQueryResultHKT>(
     })
     .where(
       and(
-        eq(pantryItems.householdId, householdId),
-        eq(sql`lower(${pantryItems.name})`, normalizedName),
+        matchesNameInHousehold(householdId, normalizedName),
+        eq(pantryItems.unit, unit),
       ),
     )
     .returning();
 
-  return updated;
+  if (updated) {
+    return updated;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(pantryItems)
+    .where(matchesNameInHousehold(householdId, normalizedName));
+
+  if (existing) {
+    throw new PantryItemUnitMismatchError(existing.name, existing.unit);
+  }
+
+  return undefined;
 }
 
 const UNIQUE_VIOLATION_CODE = "23505";
@@ -117,6 +153,7 @@ export async function addPantryItem<TQueryResult extends PgQueryResultHKT>(
     db,
     householdId,
     normalizedName,
+    input.unit,
     input.quantity,
   );
   if (updated) {
@@ -143,8 +180,22 @@ export async function addPantryItem<TQueryResult extends PgQueryResultHKT>(
     // Two concurrent adds under a brand-new name can both miss the update
     // above and race for the insert — the loser hits
     // pantry_items_household_id_name_unique instead of crashing. Retry as
-    // the increment it should have been.
-    return incrementIfExists(db, householdId, normalizedName, input.quantity);
+    // the increment it should have been, applying the same unit-match check
+    // (and mismatch rejection) as the straightforward path above. The row
+    // that just won the unique-violation race should still be there, so a
+    // "no match" result here would mean it was deleted in between — treat
+    // that as failure of the original insert rather than silently no-op-ing.
+    const retried = await incrementIfExists(
+      db,
+      householdId,
+      normalizedName,
+      input.unit,
+      input.quantity,
+    );
+    if (!retried) {
+      throw error;
+    }
+    return retried;
   }
 }
 

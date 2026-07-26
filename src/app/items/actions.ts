@@ -13,6 +13,7 @@ import {
   deletePantryItem,
   DuplicatePantryItemNameError,
   incrementPantryItemQuantity,
+  PantryItemUnitMismatchError,
   updatePantryItem,
 } from "@/lib/pantry-items";
 
@@ -31,7 +32,17 @@ export async function addItem(
   }
 
   const household = await getHouseholdForUser(db, claims.sub);
-  await addPantryItem(db, household.id, parsed.value);
+
+  try {
+    await addPantryItem(db, household.id, parsed.value);
+  } catch (error) {
+    if (error instanceof PantryItemUnitMismatchError) {
+      return {
+        error: `${error.itemName} is already tracked in ${error.unit}. Enter this amount in ${error.unit}, or edit the item to change its unit.`,
+      };
+    }
+    throw error;
+  }
 
   redirect("/");
 }

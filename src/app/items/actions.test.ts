@@ -19,6 +19,14 @@ vi.mock("@/lib/household", () => ({
 }));
 
 class DuplicatePantryItemNameError extends Error {}
+class PantryItemUnitMismatchError extends Error {
+  constructor(
+    public readonly itemName: string,
+    public readonly unit: string,
+  ) {
+    super();
+  }
+}
 
 vi.mock("@/lib/pantry-items", () => ({
   addPantryItem: addPantryItemMock,
@@ -27,6 +35,7 @@ vi.mock("@/lib/pantry-items", () => ({
   deletePantryItem: deletePantryItemMock,
   updatePantryItem: updatePantryItemMock,
   DuplicatePantryItemNameError,
+  PantryItemUnitMismatchError,
 }));
 
 // Next.js's real redirect() always throws to halt execution — mirror that
@@ -123,6 +132,23 @@ describe("addItem", () => {
 
     expect(redirectMock).toHaveBeenCalledWith("/login");
     expect(addPantryItemMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a friendly error naming the existing unit when the add's unit doesn't match", async () => {
+    addPantryItemMock.mockRejectedValue(
+      new PantryItemUnitMismatchError("Rice", "kg"),
+    );
+
+    const state = await addItem(
+      undefined,
+      formDataOf({ name: "Rice", quantity: "3", unit: "bag" }),
+    );
+
+    expect(state).toEqual({
+      error:
+        "Rice is already tracked in kg. Enter this amount in kg, or edit the item to change its unit.",
+    });
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 });
 
