@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { AccountMenu } from "./account-menu";
+import { MinusIcon, PencilIcon, PlusIcon, TrashIcon } from "./icons";
+import { decrementItem, deleteItem, incrementItem } from "./items/actions";
 import type { pantryItems } from "@/db/schema";
 import { formatQuantity } from "@/lib/pantry-item";
 
@@ -9,6 +11,11 @@ type PantryItemRow = typeof pantryItems.$inferSelect;
 type Props = {
   items: PantryItemRow[];
 };
+
+// 32px touch target per ADR 0004.
+const ACTION_BUTTON_CLASS =
+  "flex h-8 w-8 items-center justify-center rounded border border-zinc-300 text-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300";
+const ACTION_ICON_CLASS = "h-4 w-4";
 
 export function SignedInHome({ items }: Props) {
   return (
@@ -75,7 +82,45 @@ export function SignedInHome({ items }: Props) {
                       <td className="px-4 py-2">
                         {formatQuantity(item.quantity, item.unit)}
                       </td>
-                      <td className="px-4 py-2" />
+                      <td className="px-4 py-2">
+                        <div className="flex items-center gap-1.5">
+                          <form action={decrementItem.bind(null, item.id)}>
+                            <button
+                              type="submit"
+                              disabled={outOfStock}
+                              aria-label={`Decrease ${item.name} quantity`}
+                              className={ACTION_BUTTON_CLASS}
+                            >
+                              <MinusIcon className={ACTION_ICON_CLASS} />
+                            </button>
+                          </form>
+                          <form action={incrementItem.bind(null, item.id)}>
+                            <button
+                              type="submit"
+                              aria-label={`Increase ${item.name} quantity`}
+                              className={ACTION_BUTTON_CLASS}
+                            >
+                              <PlusIcon className={ACTION_ICON_CLASS} />
+                            </button>
+                          </form>
+                          <Link
+                            href={`/items/${item.id}/edit`}
+                            aria-label={`Edit ${item.name}`}
+                            className={ACTION_BUTTON_CLASS}
+                          >
+                            <PencilIcon className={ACTION_ICON_CLASS} />
+                          </Link>
+                          <form action={deleteItem.bind(null, item.id)}>
+                            <button
+                              type="submit"
+                              aria-label={`Delete ${item.name}`}
+                              className={ACTION_BUTTON_CLASS}
+                            >
+                              <TrashIcon className={ACTION_ICON_CLASS} />
+                            </button>
+                          </form>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
