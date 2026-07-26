@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 
 import { EditItemForm } from "./edit-item-form";
+import { AppHeader } from "@/app/app-header";
 import { db } from "@/db/client";
 import { getHouseholdForUser } from "@/lib/household";
 import { getPantryItem } from "@/lib/pantry-items";
@@ -27,5 +28,10 @@ export default async function EditItemPage({ params }: Props) {
     notFound();
   }
 
-  return <EditItemForm item={item} />;
+  return (
+    <div className="flex flex-1 flex-col">
+      <AppHeader />
+      <EditItemForm item={item} />
+    </div>
+  );
 }

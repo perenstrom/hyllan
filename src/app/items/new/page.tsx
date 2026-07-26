@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { AddItemForm } from "./add-item-form";
+import { AppHeader } from "@/app/app-header";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function NewItemPage() {
@@ -11,5 +12,10 @@ export default async function NewItemPage() {
     redirect("/login");
   }
 
-  return <AddItemForm />;
+  return (
+    <div className="flex flex-1 flex-col">
+      <AppHeader />
+      <AddItemForm />
+    </div>
+  );
 }

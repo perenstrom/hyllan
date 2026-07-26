@@ -26,7 +26,8 @@ test("signup creates a household, then login and sign out both work", async ({
     await sql.end();
   }
 
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login$/);
 
   await page.getByLabel("Email").fill(email);
@@ -35,6 +36,7 @@ test("signup creates a household, then login and sign out both work", async ({
 
   await expect(page.getByText("Your pantry is empty.")).toBeVisible();
 
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login$/);
 });

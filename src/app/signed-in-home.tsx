@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { AccountMenu } from "./account-menu";
+import { AppHeader } from "./app-header";
 import { MinusIcon, PencilIcon, PlusIcon, TrashIcon } from "./icons";
 import { decrementItem, deleteItem, incrementItem } from "./items/actions";
 import type { pantryItems } from "@/db/schema";
@@ -20,12 +20,7 @@ const ACTION_ICON_CLASS = "h-4 w-4";
 export function SignedInHome({ items }: Props) {
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 font-sans dark:bg-black">
-      <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-        <span className="font-semibold text-black dark:text-zinc-50">
-          Hyllan
-        </span>
-        <AccountMenu />
-      </header>
+      <AppHeader />
       <main className="flex flex-1 flex-col gap-4 px-6 py-6">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-semibold text-black dark:text-zinc-50">
