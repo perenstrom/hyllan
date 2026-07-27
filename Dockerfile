@@ -21,6 +21,17 @@ ARG NEXT_PUBLIC_GLITCHTIP_DSN
 ENV NEXT_PUBLIC_GLITCHTIP_DSN=$NEXT_PUBLIC_GLITCHTIP_DSN
 RUN npm run build
 
+# Coolify's one-shot migrate service runs `npm run db:migrate` against this
+# stage rather than the runner below: drizzle-kit is a devDependency, and
+# Next's standalone output (copied into runner) only traces production
+# dependencies actually imported by the server, so drizzle-kit never makes it
+# in. `deps`'s node_modules still has it, since npm ci here installs
+# devDependencies too.
+FROM deps AS migrator
+WORKDIR /app
+COPY . .
+CMD ["npm", "run", "db:migrate"]
+
 FROM node:24-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production

@@ -1,0 +1,185 @@
+# Coolify-only compose file — the bare `docker compose --profile production`
+# + Caddy path in compose.yaml/Caddyfile stays untouched for non-Coolify
+# self-hosters (see README's "Production deployment" section). This file
+# instead targets Coolify's own reverse proxy/TLS and one-off-command
+# support, per the Wayfinder map at PER-238's "Decide Hyllan's Coolify
+# deployment shape" decision (PER-244):
+#
+# - No `profiles:` — every service here is unconditional; this file has no
+#   local-dev mode to gate.
+# - No `proxy` service — Coolify's own Traefik terminates TLS and routes
+#   `app`/`auth` via their per-service Domains field instead.
+# - No `db`/`auth` host `ports:` publishes — `app` and `migrate` reach both
+#   by hostname on Coolify's shared per-resource network, and not publishing
+#   closes the public-VPS exposure a host port would otherwise open.
+# - A one-shot `migrate` service, run once per deploy (see PER-241's
+#   findings on Coolify's one-off-command support for Compose resources).
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    command:
+      - postgres
+      - -c
+      - log_min_duration_statement=250
+      - -c
+      - log_lock_waits=on
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      GOTRUE_DB_PASSWORD: ${GOTRUE_DB_PASSWORD}
+    volumes:
+      - hyllan-db-data:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+
+  auth:
+    image: supabase/gotrue:v2.189.0
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${GOTRUE_API_EXTERNAL_URL}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${GOTRUE_DB_PASSWORD}@db:5432/${POSTGRES_DB}
+      GOTRUE_SITE_URL: ${GOTRUE_SITE_URL}
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_SECRET: ${GOTRUE_JWT_SECRET}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: "false"
+      # No SMTP configured yet: skip email confirmation entirely rather than
+      # have signups fail trying to send mail.
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:9999/health",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Must be a build arg, not a runtime env var — see Dockerfile.
+        NEXT_PUBLIC_GLITCHTIP_DSN: ${NEXT_PUBLIC_GLITCHTIP_DSN:-}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      auth:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      GLITCHTIP_DSN: ${GLITCHTIP_DSN:-}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3000/api/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default-logging
+
+  # One-off DB migration, run once per deploy. `exclude_from_hc: true` is
+  # Coolify's documented flag for one-shot services in a Compose-build-pack
+  # resource, so Coolify doesn't wait on/health-gate a container that's
+  # meant to run once and exit (see PER-241's findings).
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+    restart: "no"
+    exclude_from_hc: true
+    depends_on:
+      db:
+        condition: service_healthy
+      # The app's first migration adds a foreign key to auth.users, which
+      # GoTrue creates via its own boot-time migrations, not the
+      # postgres-init scripts — migrate must wait for auth to actually be
+      # up, or it fails with "relation auth.users does not exist" on a
+      # fresh database (confirmed by hand while validating this file).
+      auth:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    logging: *default-logging
+
+  backup:
+    build:
+      context: ./docker/backup
+    restart: unless-stopped
+    # busybox crond calls setpgid on itself, which fails when it's PID 1
+    # ("setpgid: Operation not permitted") — Docker's built-in init keeps
+    # crond as a child process instead, avoiding that.
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+    # env_file passes through any RCLONE_CONFIG_<REMOTE>_* variables an
+    # operator adds to .env for their chosen off-server target, without
+    # this file needing to know the remote's name in advance.
+    env_file: .env
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_RCLONE_REMOTE: ${BACKUP_RCLONE_REMOTE:-}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+    volumes:
+      - hyllan-backups:/backups
+    healthcheck:
+      # crond alive, and (once backup.sh has run at least once) its last
+      # successful run isn't more than two scheduled runs old — a missing
+      # marker (nothing has run yet since deploy) counts as healthy, only a
+      # stale one doesn't.
+      test:
+        [
+          "CMD-SHELL",
+          "pgrep crond && ! find /backups/.last-success -mmin +2880 2>/dev/null | grep -q .",
+        ]
+      interval: 30m
+      timeout: 5s
+      retries: 3
+    logging: *default-logging
+
+volumes:
+  hyllan-db-data:
+  hyllan-backups:
