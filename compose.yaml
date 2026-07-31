@@ -9,7 +9,14 @@ x-default-logging: &default-logging
 
 services:
   db:
-    image: postgres:17-alpine
+    # Builds the init script into the image (docker/postgres/Dockerfile)
+    # instead of bind-mounting docker/postgres-init at runtime — keeps this
+    # in sync with compose.coolify.yaml, where a host bind-mount's source
+    # path isn't reliable on self-hosting platforms that manage their own
+    # checkout location (see compose.coolify.yaml's db service for details).
+    build:
+      context: ./docker
+      dockerfile: postgres/Dockerfile
     restart: unless-stopped
     # log_destination stays at its stderr default (captured by Docker's log
     # driver below, same as every other service); these two just turn on
@@ -29,7 +36,6 @@ services:
       - "${POSTGRES_PORT}:5432"
     volumes:
       - hyllan-db-data:/var/lib/postgresql/data
-      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
