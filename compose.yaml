@@ -101,6 +101,12 @@ services:
         # next.config.ts's rewrites() needs this at build time — see
         # Dockerfile.
         GOTRUE_API_EXTERNAL_URL: ${GOTRUE_API_EXTERNAL_URL}
+        # @supabase/ssr's client needs these at build time — see Dockerfile.
+        # The app's own public origin, not GoTrue's (see .env.example).
+        # ANON_KEY is never checked by standalone GoTrue — any non-empty
+        # value works.
+        NEXT_PUBLIC_SUPABASE_URL: https://${DOMAIN}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-unused-by-standalone-gotrue
     restart: unless-stopped
     depends_on:
       db:
