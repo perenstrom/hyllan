@@ -19,6 +19,14 @@ ENV DATABASE_URL=postgres://placeholder:placeholder@localhost:5432/placeholder
 # `environment:` entry (see compose.yaml's app.build.args).
 ARG NEXT_PUBLIC_GLITCHTIP_DSN
 ENV NEXT_PUBLIC_GLITCHTIP_DSN=$NEXT_PUBLIC_GLITCHTIP_DSN
+# next.config.ts's rewrites() reads this at build time to validate the
+# /auth/v1/* destination — without it, the destination template literal
+# resolves to "undefined/:path*" and `next build` fails with "Invalid
+# rewrite found". CI's build step never caught this because it runs
+# `npm run build` directly on the runner (with the var set as a plain env
+# var), not through this Dockerfile.
+ARG GOTRUE_API_EXTERNAL_URL
+ENV GOTRUE_API_EXTERNAL_URL=$GOTRUE_API_EXTERNAL_URL
 RUN npm run build
 
 # Coolify's one-shot migrate service runs `npm run db:migrate` against this
