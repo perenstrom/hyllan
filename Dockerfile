@@ -19,6 +19,14 @@ ENV DATABASE_URL=postgres://placeholder:placeholder@localhost:5432/placeholder
 # `environment:` entry (see compose.yaml's app.build.args).
 ARG NEXT_PUBLIC_GLITCHTIP_DSN
 ENV NEXT_PUBLIC_GLITCHTIP_DSN=$NEXT_PUBLIC_GLITCHTIP_DSN
+# @supabase/ssr's client creation throws ("Your project's URL and Key are
+# required") the first time it's invoked if these were never set at build
+# time — inlined as `undefined` otherwise, same as above, so no amount of
+# setting them at container runtime afterwards can fix it.
+ARG NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 # next.config.ts's rewrites() reads this at build time to validate the
 # /auth/v1/* destination — without it, the destination template literal
 # resolves to "undefined/:path*" and `next build` fails with "Invalid
