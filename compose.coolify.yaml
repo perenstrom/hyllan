@@ -77,6 +77,16 @@ services:
       # No SMTP configured yet: skip email confirmation entirely rather than
       # have signups fail trying to send mail.
       GOTRUE_MAILER_AUTOCONFIRM: "true"
+    # The official gotrue image declares no EXPOSE port at all (confirmed via
+    # `docker inspect supabase/gotrue:v2.189.0` — Config.ExposedPorts is
+    # null), so Coolify's Traefik-label generation has nothing to
+    # auto-detect a backend port from, and silently emits routers with no
+    # loadbalancer port — Traefik then reports "no available server" despite
+    # a healthy container on the right network. Declaring the port
+    # explicitly fixes this the same way it already works for `app` (whose
+    # own Dockerfile EXPOSEs 3000).
+    expose:
+      - "9999"
     healthcheck:
       test:
         [
@@ -119,6 +129,11 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       GLITCHTIP_DSN: ${GLITCHTIP_DSN:-}
+    # Explicit, same as auth — the Dockerfile's own EXPOSE 3000 wasn't
+    # enough for Coolify's Traefik-label generation to pick up a backend
+    # port (see auth's comment).
+    expose:
+      - "3000"
     healthcheck:
       test:
         [
