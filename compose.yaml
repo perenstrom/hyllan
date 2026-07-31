@@ -92,6 +92,9 @@ services:
       args:
         # Must be a build arg, not a runtime env var — see Dockerfile.
         NEXT_PUBLIC_GLITCHTIP_DSN: ${NEXT_PUBLIC_GLITCHTIP_DSN:-}
+        # next.config.ts's rewrites() needs this at build time — see
+        # Dockerfile.
+        GOTRUE_API_EXTERNAL_URL: ${GOTRUE_API_EXTERNAL_URL}
     restart: unless-stopped
     depends_on:
       db:
