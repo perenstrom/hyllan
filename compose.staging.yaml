@@ -1,0 +1,181 @@
+# Coolify-only compose file for the staging environment — a stripped-down
+# mirror of compose.coolify.yaml (production's Coolify compose file, left
+# untouched) for the Wayfinder map at PER-250's "Author compose.staging.yaml"
+# decision (PER-257):
+#
+# - Same `db`/`auth`/`app`/`migrate` shape as production, including
+#   `migrate`'s dependency on both `db` and `auth` being healthy.
+# - No `backup` service — staging's data is disposable, no off-server
+#   backups needed (see the map's Out of scope).
+# - No `NEXT_PUBLIC_GLITCHTIP_DSN`/`GLITCHTIP_DSN` — staging has no error
+#   tracking (see Out of scope). Left unset rather than wired to an
+#   empty/placeholder value.
+# - No `profiles:` — every service here is unconditional; this file has no
+#   local-dev mode to gate.
+# - No `proxy` service — Coolify's own Traefik terminates TLS and routes
+#   `app`/`auth` via their per-service Domains field instead.
+# - No `db`/`auth` host `ports:` publishes — `app` and `migrate` reach both
+#   by hostname on Coolify's shared per-resource network, and not publishing
+#   closes the public-VPS exposure a host port would otherwise open.
+# - A one-shot `migrate` service, run once per deploy (see PER-241's
+#   findings on Coolify's one-off-command support for Compose resources).
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    # Builds the init script into the image (docker/postgres/Dockerfile)
+    # instead of bind-mounting docker/postgres-init at runtime — Coolify's
+    # rendered compose points the bind-mount at a fixed host path
+    # (/data/coolify/applications/<uuid>/...) that isn't guaranteed to hold
+    # the checked-out repo at the moment `db` starts, which silently skips
+    # docker-entrypoint-initdb.d instead of failing loudly. Confirmed by
+    # reproducing the exact same "role \"supabase_auth_admin\" does not
+    # exist" failure locally when the bind-mount source didn't resolve.
+    build:
+      context: ./docker
+      dockerfile: postgres/Dockerfile
+    restart: unless-stopped
+    command:
+      - postgres
+      - -c
+      - log_min_duration_statement=250
+      - -c
+      - log_lock_waits=on
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      GOTRUE_DB_PASSWORD: ${GOTRUE_DB_PASSWORD}
+    volumes:
+      - hyllan-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+
+  auth:
+    image: supabase/gotrue:v2.189.0
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${GOTRUE_API_EXTERNAL_URL}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${GOTRUE_DB_PASSWORD}@db:5432/${POSTGRES_DB}
+      GOTRUE_SITE_URL: ${GOTRUE_SITE_URL}
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_SECRET: ${GOTRUE_JWT_SECRET}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: "false"
+      # No SMTP configured: skip email confirmation entirely rather than
+      # have signups fail trying to send mail. Same posture as production.
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+    # The official gotrue image declares no EXPOSE port at all (confirmed via
+    # `docker inspect supabase/gotrue:v2.189.0` — Config.ExposedPorts is
+    # null), so Coolify's Traefik-label generation has nothing to
+    # auto-detect a backend port from, and silently emits routers with no
+    # loadbalancer port — Traefik then reports "no available server" despite
+    # a healthy container on the right network. Declaring the port
+    # explicitly fixes this the same way it already works for `app` (whose
+    # own Dockerfile EXPOSEs 3000).
+    expose:
+      - "9999"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://127.0.0.1:9999/health",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # next.config.ts's rewrites() needs this at build time — see
+        # Dockerfile.
+        GOTRUE_API_EXTERNAL_URL: ${GOTRUE_API_EXTERNAL_URL}
+        # @supabase/ssr's client needs these at build time — see Dockerfile.
+        # NEXT_PUBLIC_SUPABASE_URL is the app's own public origin (same
+        # value as GOTRUE_SITE_URL), not GoTrue's — see .env.example.
+        # ANON_KEY is never checked by standalone GoTrue — any non-empty
+        # value works.
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-unused-by-standalone-gotrue
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      auth:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    # Explicit, same as auth — the Dockerfile's own EXPOSE 3000 wasn't
+    # enough for Coolify's Traefik-label generation to pick up a backend
+    # port (see auth's comment).
+    expose:
+      - "3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://127.0.0.1:3000/api/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default-logging
+
+  # One-off DB migration, run once per deploy. `exclude_from_hc: true` is
+  # Coolify's documented flag for one-shot services in a Compose-build-pack
+  # resource, so Coolify doesn't wait on/health-gate a container that's
+  # meant to run once and exit (see PER-241's findings).
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+    restart: "no"
+    exclude_from_hc: true
+    depends_on:
+      db:
+        condition: service_healthy
+      # The app's first migration adds a foreign key to auth.users, which
+      # GoTrue creates via its own boot-time migrations, not the
+      # postgres-init scripts — migrate must wait for auth to actually be
+      # up, or it fails with "relation auth.users does not exist" on a
+      # fresh database (confirmed by hand while validating this file).
+      auth:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    logging: *default-logging
+
+volumes:
+  hyllan-db-data:
