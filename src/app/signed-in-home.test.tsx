@@ -119,6 +119,43 @@ describe("SignedInHome", () => {
     ).toBeInTheDocument();
   });
 
+  function getActionsContainer() {
+    const decrementForm = screen
+      .getByRole("button", { name: "Decrease Rice quantity" })
+      .closest("form");
+    return decrementForm?.parentElement as HTMLElement;
+  }
+
+  it("lays the actions out as a 2x2 grid below sm, a single row at/above it", () => {
+    render(<SignedInHome items={[itemRow()]} />);
+
+    expect(getActionsContainer()).toHaveClass("grid", "grid-cols-2", "sm:flex");
+  });
+
+  it("orders the actions decrement, increment, edit, delete so the grid wraps them 2x2 in that order", () => {
+    render(<SignedInHome items={[itemRow()]} />);
+
+    const controls = Array.from(
+      getActionsContainer().querySelectorAll("button, a"),
+    );
+
+    expect(controls.map((el) => el.getAttribute("aria-label"))).toEqual([
+      "Decrease Rice quantity",
+      "Increase Rice quantity",
+      "Edit Rice",
+      "Delete Rice",
+    ]);
+  });
+
+  it("sizes the table's minimum width for the 2x2 actions grid so it fits a 375px viewport", () => {
+    render(<SignedInHome items={[itemRow()]} />);
+
+    const table = screen.getByRole("table");
+
+    expect(table).not.toHaveClass("min-w-[480px]");
+    expect(table).toHaveClass("min-w-[320px]");
+  });
+
   it("disables the decrement control once an item is out of stock", () => {
     render(<SignedInHome items={[itemRow({ quantity: "0" })]} />);
 
