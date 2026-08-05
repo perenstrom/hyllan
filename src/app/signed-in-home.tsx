@@ -91,7 +91,11 @@ export function SignedInHome({ items }: Props) {
           </p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
-            <table className="w-full min-w-[400px] text-left text-sm">
+            {/* 320px leaves room within a 375px viewport once `main`'s
+                px-6 (48px total) is subtracted, so the 2x2 actions grid
+                (PER-233) doesn't push ordinary phone widths into scroll —
+                only genuine edge cases like very long item names do. */}
+            <table className="w-full min-w-[320px] text-left text-sm">
               <thead className="border-b border-zinc-200 dark:border-zinc-800">
                 <tr>
                   <th className="px-4 py-2 font-medium text-zinc-600 dark:text-zinc-400">
@@ -125,10 +129,10 @@ export function SignedInHome({ items }: Props) {
                         {formatQuantity(item.quantity, item.unit)}
                       </td>
                       <td className="px-4 py-2">
-                        {/* 2x2 grid below sm (ADR 0004, PER-232) so the four
+                        {/* 2x2 grid below sm (ADR 0004, PER-233) so the four
                             buttons' combined width stops being the table's
                             widest column and forcing horizontal scroll. */}
-                        <div className="grid grid-cols-2 items-center gap-1.5 sm:flex sm:flex-row">
+                        <div className="grid grid-cols-2 items-center gap-1.5 sm:flex">
                           <form action={handleDecrement.bind(null, item.id)}>
                             <button
                               type="submit"
