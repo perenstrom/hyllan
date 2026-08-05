@@ -14,5 +14,12 @@ _Avoid_: Product, ingredient, stock entry
 **Quantity**:
 The decimal amount of a pantry item a household currently has. Zero is valid and means the item is out of stock but still tracked; negative values are invalid. Carries no unit-conversion behavior — see Unit.
 
+**Minimum quantity**:
+An optional, per-pantry-item threshold in the item's own `unit` (see Unit), set by the household to mark when they consider that item low. Unset (not zero — zero already means out of stock) disables low-stock tracking for that item entirely. Determines Low stock, below.
+_Avoid_: reorder point, reorder threshold, par level
+
+**Low stock**:
+The state of a pantry item whose quantity is greater than zero but at or below its minimum quantity. Mutually exclusive with out of stock (quantity exactly zero) by construction — an item is never both; a zeroed item is out of stock only, regardless of what its minimum quantity is set to. Items with no minimum quantity set are never low stock.
+
 **Unit**:
 A display-only label attached to a pantry item's quantity (count, g, kg, ml, l, box, bag, pack — defaults to count). Purely descriptive: Hyllan does no conversion or normalization between units. Not to be confused with a unit of measure in the metrological sense.
