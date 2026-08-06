@@ -92,11 +92,19 @@ describe("SignedInHome", () => {
     expect(row).not.toHaveClass("bg-red-100");
   });
 
-  it("shrinks the content container's padding below sm, restoring it at/above sm", () => {
+  it("removes the content container's horizontal padding below sm so the table can sit flush, restoring it at/above sm", () => {
     render(<SignedInHome items={[]} />);
 
     const main = screen.getByRole("main");
-    expect(main).toHaveClass("px-2", "py-5", "sm:px-6", "sm:py-6");
+    expect(main).not.toHaveClass("px-2");
+    expect(main).toHaveClass("py-5", "sm:px-6", "sm:py-6");
+  });
+
+  it("keeps a small horizontal inset on the header row below sm, since main no longer provides one there", () => {
+    render(<SignedInHome items={[]} />);
+
+    const header = screen.getByText("Your pantry").closest("div");
+    expect(header).toHaveClass("px-2", "sm:px-0");
   });
 
   it("drops the table wrapper's border and rounded corners below sm, restoring them at/above sm", () => {

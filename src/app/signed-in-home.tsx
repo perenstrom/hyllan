@@ -72,8 +72,8 @@ export function SignedInHome({ items }: Props) {
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 font-sans dark:bg-black">
       <AppHeader />
-      <main className="flex flex-1 flex-col gap-4 px-2 py-5 sm:px-6 sm:py-6">
-        <div className="flex items-center justify-between">
+      <main className="flex flex-1 flex-col gap-4 py-5 sm:px-6 sm:py-6">
+        <div className="flex items-center justify-between px-2 sm:px-0">
           <h1 className="text-lg font-semibold text-black dark:text-zinc-50">
             Your pantry
           </h1>
@@ -91,11 +91,11 @@ export function SignedInHome({ items }: Props) {
           </p>
         ) : (
           <div className="overflow-x-auto sm:rounded-lg sm:border sm:border-zinc-200 dark:sm:border-zinc-800">
-            {/* 320px leaves room within a 375px viewport once `main`'s
-                mobile px-2 (16px total) is subtracted, so the 2x2 actions
-                grid (PER-233) doesn't push ordinary phone widths into
-                scroll — only genuine edge cases like very long item names
-                do. */}
+            {/* 320px comfortably fits a 375px viewport now that the table
+                sits flush against the screen edge (no horizontal padding
+                from `main` below sm), so the 2x2 actions grid (PER-233)
+                doesn't push ordinary phone widths into scroll — only
+                genuine edge cases like very long item names do. */}
             <table className="w-full min-w-[320px] text-left text-sm">
               <thead className="border-b border-zinc-200 dark:border-zinc-800">
                 <tr>
