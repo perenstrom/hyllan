@@ -11,3 +11,7 @@ Default vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 ### Domain docs
 
 Single-context layout (`CONTEXT.md` + `docs/adr/` at repo root). See `docs/agents/domain.md`.
+
+### Commit messages
+
+Follow [Conventional Commits](https://www.conventionalcommits.org/) (`type(scope): description`). See the "Commits" section in `README.md`.
