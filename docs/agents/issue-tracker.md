@@ -13,6 +13,25 @@ Issues and specs (PRDs) for this repo are tracked in Linear, in the **hyllan** p
 
 If no Linear MCP server is connected in the current session, don't guess at an API call — tell the user what issue/comment/label change you'd make and ask them to apply it in Linear themselves.
 
+## Branch names and auto-close
+
+Linear's GitHub integration auto-completes a ticket when a PR referencing it
+merges — via that ticket's Linear-suggested branch name or an ID in the
+commit/PR text — regardless of whether the PR actually implements the fix.
+A docs-only or exploratory PR that reuses an implementation ticket's branch
+name will silently mark it Done before the real work lands.
+
+- Only use a ticket's Linear-suggested branch name (and the bare `(PER-XXX)`
+  commit suffix, see README.md's Commits section) for the PR that actually
+  finishes that ticket.
+- For work that merely relates to a ticket without finishing it — docs,
+  ADR amendments, research, triage notes — use a plain branch name that
+  doesn't contain the ticket ID, and reference the ticket in the commit
+  body as `Refs PER-XXX` instead.
+- If you discover a ticket was auto-closed by a non-implementing PR (check
+  its Linear attachments — a "Done" ticket whose only linked PR is docs-only
+  is the tell), flag it to the user rather than silently reopening it.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a new issue in the `hyllan` Linear project via the Linear MCP tools.
