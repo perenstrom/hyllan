@@ -92,6 +92,26 @@ describe("SignedInHome", () => {
     expect(row).not.toHaveClass("bg-red-100");
   });
 
+  it("shrinks the content container's padding below sm, restoring it at/above sm", () => {
+    render(<SignedInHome items={[]} />);
+
+    const main = screen.getByRole("main");
+    expect(main).toHaveClass("px-2", "py-5", "sm:px-6", "sm:py-6");
+  });
+
+  it("drops the table wrapper's border and rounded corners below sm, restoring them at/above sm", () => {
+    render(<SignedInHome items={[itemRow()]} />);
+
+    const wrapper = screen.getByRole("table").parentElement as HTMLElement;
+    expect(wrapper).not.toHaveClass("border", "rounded-lg");
+    expect(wrapper).toHaveClass(
+      "sm:rounded-lg",
+      "sm:border",
+      "sm:border-zinc-200",
+      "dark:sm:border-zinc-800",
+    );
+  });
+
   it("links the add-item action to the focused form", () => {
     render(<SignedInHome items={[]} />);
 
