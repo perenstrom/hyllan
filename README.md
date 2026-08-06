@@ -127,6 +127,28 @@ tests, per the project's testing strategy
   (`https://$DOMAIN/api/health`) rather than standing up a separate uptime
   tool — see GlitchTip's own docs for adding a check.
 
+## Commits
+
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+- **type** — one of `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`,
+  `build`, `ci`, `chore`, `revert`.
+- **scope** — optional, the area touched (e.g. `feat(auth): ...`).
+- **description** — imperative, lower case, no trailing period.
+- **Linear ticket** — if the commit closes or advances a tracked issue, append
+  its ID in parentheses at the end of the description, e.g.
+  `fix(pantry): correct low-stock threshold check (PER-251)`.
+- **Breaking changes** — mark with `!` after the type/scope
+  (`feat(api)!: ...`) and explain in a `BREAKING CHANGE:` footer.
+
 ## Scripts
 
 - `npm run dev` — start the dev server
