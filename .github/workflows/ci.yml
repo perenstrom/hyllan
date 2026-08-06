@@ -64,3 +64,24 @@ jobs:
       - run: npm run test:e2e
       - if: always()
         run: docker compose down
+
+  deploy-staging:
+    needs: [build, e2e]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Trigger Coolify staging deploy
+        env:
+          COOLIFY_URL: ${{ vars.COOLIFY_URL }}
+          COOLIFY_STAGING_APP_UUID: ${{ vars.COOLIFY_STAGING_APP_UUID }}
+          COOLIFY_STAGING_TOKEN: ${{ secrets.COOLIFY_STAGING_TOKEN }}
+        run: |
+          http_code=$(curl --silent --show-error --output response.json --write-out "%{http_code}" \
+            --request POST "${COOLIFY_URL}/api/v1/deploy?uuid=${COOLIFY_STAGING_APP_UUID}&force=false" \
+            --header "Authorization: Bearer ${COOLIFY_STAGING_TOKEN}")
+          cat response.json
+          if [ "$http_code" -ge 300 ]; then
+            echo "::error::Coolify deploy-trigger request failed (HTTP $http_code)."
+            exit 1
+          fi
