@@ -92,6 +92,47 @@ describe("SignedInHome", () => {
     expect(row).not.toHaveClass("bg-red-100");
   });
 
+  it("removes the content container's horizontal padding below sm so the table can sit flush, restoring it at/above sm", () => {
+    render(<SignedInHome items={[]} />);
+
+    const main = screen.getByRole("main");
+    expect(main).not.toHaveClass("px-2");
+    expect(main).toHaveClass("py-5", "sm:px-6", "sm:py-6");
+  });
+
+  it("keeps a small horizontal inset on the header row below sm, since main no longer provides one there", () => {
+    render(<SignedInHome items={[]} />);
+
+    const header = screen.getByText("Your pantry").closest("div");
+    expect(header).toHaveClass("px-2", "sm:px-0");
+  });
+
+  it("shrinks table cell horizontal padding below sm, restoring it at/above sm", () => {
+    render(<SignedInHome items={[itemRow()]} />);
+
+    const cells = [
+      ...screen.getAllByRole("columnheader"),
+      ...screen.getAllByRole("cell"),
+    ];
+    for (const cell of cells) {
+      expect(cell).not.toHaveClass("px-4");
+      expect(cell).toHaveClass("px-2", "py-2", "sm:px-4");
+    }
+  });
+
+  it("drops the table wrapper's border and rounded corners below sm, restoring them at/above sm", () => {
+    render(<SignedInHome items={[itemRow()]} />);
+
+    const wrapper = screen.getByRole("table").parentElement as HTMLElement;
+    expect(wrapper).not.toHaveClass("border", "rounded-lg");
+    expect(wrapper).toHaveClass(
+      "sm:rounded-lg",
+      "sm:border",
+      "sm:border-zinc-200",
+      "dark:sm:border-zinc-800",
+    );
+  });
+
   it("links the add-item action to the focused form", () => {
     render(<SignedInHome items={[]} />);
 
