@@ -1,0 +1,83 @@
+name: Deploy to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force a clean --no-cache rebuild instead of reusing an existing image for this commit"
+        type: boolean
+        default: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Require main
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::This workflow can only be run against main (got ${{ github.ref }})."
+            exit 1
+          fi
+
+      - name: Confirm CI is green on main's current HEAD
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha="${{ github.sha }}"
+          for job in build e2e; do
+            conclusion=$(gh api "repos/${{ github.repository }}/commits/$sha/check-runs" --paginate \
+              --jq "[.check_runs[] | select(.name == \"$job\")] | sort_by(.started_at) | last | .conclusion")
+            if [ "$conclusion" != "success" ]; then
+              echo "::error::CI job '$job' is not green on $sha (conclusion: ${conclusion:-not found})."
+              exit 1
+            fi
+            echo "CI job '$job' is green on $sha."
+          done
+
+      - name: Trigger Coolify production deploy
+        id: trigger
+        env:
+          COOLIFY_URL: ${{ vars.COOLIFY_URL }}
+          COOLIFY_PROD_APP_UUID: ${{ vars.COOLIFY_PROD_APP_UUID }}
+          COOLIFY_PROD_TOKEN: ${{ secrets.COOLIFY_PROD_TOKEN }}
+        run: |
+          http_code=$(curl --silent --show-error --output response.json --write-out "%{http_code}" \
+            --request POST "${COOLIFY_URL}/api/v1/deploy?uuid=${COOLIFY_PROD_APP_UUID}&force=${{ inputs.force }}" \
+            --header "Authorization: Bearer ${COOLIFY_PROD_TOKEN}")
+          cat response.json
+          if [ "$http_code" -ge 300 ]; then
+            echo "::error::Coolify deploy-trigger request failed (HTTP $http_code)."
+            exit 1
+          fi
+          deployment_uuid=$(jq -r '.deployments[0].deployment_uuid' response.json)
+          if [ -z "$deployment_uuid" ] || [ "$deployment_uuid" = "null" ]; then
+            echo "::error::Coolify's response didn't include a deployment_uuid."
+            exit 1
+          fi
+          echo "deployment_uuid=$deployment_uuid" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for the deployment to finish
+        env:
+          COOLIFY_URL: ${{ vars.COOLIFY_URL }}
+          COOLIFY_PROD_TOKEN: ${{ secrets.COOLIFY_PROD_TOKEN }}
+          DEPLOYMENT_UUID: ${{ steps.trigger.outputs.deployment_uuid }}
+        run: |
+          for i in $(seq 1 60); do
+            status=$(curl --fail --silent --request GET \
+              "${COOLIFY_URL}/api/v1/deployments/${DEPLOYMENT_UUID}" \
+              --header "Authorization: Bearer ${COOLIFY_PROD_TOKEN}" | jq -r '.status')
+            echo "[$i/60] deployment $DEPLOYMENT_UUID status: $status"
+            case "$status" in
+              finished)
+                exit 0
+                ;;
+              failed|"cancelled-by-user")
+                echo "::error::Coolify deployment ended with status '$status'."
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+          echo "::error::Timed out waiting for the deployment to finish."
+          exit 1
