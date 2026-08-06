@@ -107,6 +107,19 @@ describe("SignedInHome", () => {
     expect(header).toHaveClass("px-2", "sm:px-0");
   });
 
+  it("shrinks table cell horizontal padding below sm, restoring it at/above sm", () => {
+    render(<SignedInHome items={[itemRow()]} />);
+
+    const cells = [
+      ...screen.getAllByRole("columnheader"),
+      ...screen.getAllByRole("cell"),
+    ];
+    for (const cell of cells) {
+      expect(cell).not.toHaveClass("px-4");
+      expect(cell).toHaveClass("px-2", "py-2", "sm:px-4");
+    }
+  });
+
   it("drops the table wrapper's border and rounded corners below sm, restoring them at/above sm", () => {
     render(<SignedInHome items={[itemRow()]} />);
 

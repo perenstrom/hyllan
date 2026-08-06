@@ -99,13 +99,13 @@ export function SignedInHome({ items }: Props) {
             <table className="w-full min-w-[320px] text-left text-sm">
               <thead className="border-b border-zinc-200 dark:border-zinc-800">
                 <tr>
-                  <th className="px-4 py-2 font-medium text-zinc-600 dark:text-zinc-400">
+                  <th className="px-2 py-2 font-medium text-zinc-600 sm:px-4 dark:text-zinc-400">
                     Name
                   </th>
-                  <th className="px-4 py-2 font-medium text-zinc-600 dark:text-zinc-400">
+                  <th className="px-2 py-2 font-medium text-zinc-600 sm:px-4 dark:text-zinc-400">
                     Amount
                   </th>
-                  <th className="px-4 py-2 font-medium text-zinc-600 dark:text-zinc-400">
+                  <th className="px-2 py-2 font-medium text-zinc-600 sm:px-4 dark:text-zinc-400">
                     Actions
                   </th>
                 </tr>
@@ -120,16 +120,16 @@ export function SignedInHome({ items }: Props) {
                         outOfStock ? OUT_OF_STOCK_ROW_CLASS : ""
                       }`}
                     >
-                      <td className="px-4 py-2">
+                      <td className="px-2 py-2 sm:px-4">
                         {item.name}
                         {outOfStock && (
                           <span className="sr-only"> Out of stock</span>
                         )}
                       </td>
-                      <td className="px-4 py-2">
+                      <td className="px-2 py-2 sm:px-4">
                         {formatQuantity(item.quantity, item.unit)}
                       </td>
-                      <td className="px-4 py-2">
+                      <td className="px-2 py-2 sm:px-4">
                         {/* 2x2 grid below sm (ADR 0004, PER-233) so the four
                             buttons' combined width stops being the table's
                             widest column and forcing horizontal scroll. */}
