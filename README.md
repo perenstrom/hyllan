@@ -143,9 +143,19 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
   `build`, `ci`, `chore`, `revert`.
 - **scope** — optional, the area touched (e.g. `feat(auth): ...`).
 - **description** — imperative, lower case, no trailing period.
-- **Linear ticket** — if the commit closes or advances a tracked issue, append
-  its ID in parentheses at the end of the description, e.g.
-  `fix(pantry): correct low-stock threshold check (PER-251)`.
+- **Linear ticket** — Linear's GitHub integration auto-completes an issue
+  whenever a PR whose branch name or commit references that issue's ID gets
+  merged, regardless of whether that PR actually implements the fix. So the
+  bare `(PER-XXX)` suffix, and that ticket's Linear-suggested branch name,
+  are reserved for the commit/PR that actually finishes the work:
+  - **Closing commit** (implements/finishes the ticket) — use the ticket's
+    Linear-suggested branch name and append its ID in parentheses, e.g.
+    `fix(pantry): correct low-stock threshold check (PER-251)`.
+  - **Non-closing commit** (docs, ADRs, research, triage notes that relate
+    to a ticket without finishing it) — do not use that ticket's
+    Linear-suggested branch name. Reference the ticket in the commit body
+    as `Refs PER-XXX` instead of the parenthetical suffix, so merging it
+    doesn't auto-complete the issue.
 - **Breaking changes** — mark with `!` after the type/scope
   (`feat(api)!: ...`) and explain in a `BREAKING CHANGE:` footer.
 
