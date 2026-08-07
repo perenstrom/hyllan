@@ -3,16 +3,32 @@ name: CI
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
   pull_request:
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
 
 jobs:
+  # Required status checks (build, e2e) must report on every commit, even
+  # docs-only ones, or GitHub's branch protection waits forever for a check
+  # that never runs (see PER-266 triage notes). So the workflow itself is no
+  # longer skipped via paths-ignore — instead this job detects whether any
+  # non-doc file changed, and build/e2e use its output to skip their actual
+  # work (but still always report success) when nothing but docs changed.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - "**"
+              - "!**/*.md"
+              - "!docs/**"
+
   build:
+    needs: changes
     runs-on: ubuntu-latest
     env:
       # `next build` evaluates route handler modules (incl. src/db/client.ts)
@@ -30,13 +46,19 @@ jobs:
         with:
           node-version-file: ".nvmrc"
           cache: "npm"
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm run test
-      - run: npm run build
+      - if: needs.changes.outputs.code == 'true'
+        run: npm ci
+      - if: needs.changes.outputs.code == 'true'
+        run: npm run lint
+      - if: needs.changes.outputs.code == 'true'
+        run: npm run typecheck
+      - if: needs.changes.outputs.code == 'true'
+        run: npm run test
+      - if: needs.changes.outputs.code == 'true'
+        run: npm run build
 
   e2e:
+    needs: changes
     runs-on: ubuntu-latest
     env:
       POSTGRES_USER: postgres
@@ -57,17 +79,22 @@ jobs:
         with:
           node-version-file: ".nvmrc"
           cache: "npm"
-      - run: npm ci
-      - run: docker compose up -d --wait
-      - run: npm run db:migrate
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
-      - if: always()
+      - if: needs.changes.outputs.code == 'true'
+        run: npm ci
+      - if: needs.changes.outputs.code == 'true'
+        run: docker compose up -d --wait
+      - if: needs.changes.outputs.code == 'true'
+        run: npm run db:migrate
+      - if: needs.changes.outputs.code == 'true'
+        run: npx playwright install --with-deps chromium
+      - if: needs.changes.outputs.code == 'true'
+        run: npm run test:e2e
+      - if: always() && needs.changes.outputs.code == 'true'
         run: docker compose down
 
   deploy-staging:
-    needs: [build, e2e]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [changes, build, e2e]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     environment: staging
     steps:
