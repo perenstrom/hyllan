@@ -18,6 +18,10 @@ The decimal amount of a pantry item a household currently has, shown as a single
 A place within a household's pantry (e.g. "Pantry", "Garage fridge") that a pantry item's quantity can be broken out across. Household-managed: a household creates, renames, and deletes its own locations rather than choosing from a fixed list. Identified within its household by `name`, case-insensitively, same rule as Pantry item — a household cannot have two locations with the same name. Assigning a location to an item is optional — an item's quantity can sit in an implicit unassigned bucket with no Location at all. An item can carry at most one quantity per Location (no duplicate rows for the same item/Location pair). Deleting a Location folds any quantity it held back into the owning item's unassigned bucket rather than discarding it.
 _Avoid_: place, room, area, stock entry
 
+**Stock take**:
+A household-initiated pass over a single Location's pantry items, correcting each item's quantity at that Location to an observed count — used when a use or addition never got logged. Sets quantity directly as an absolute count (not a delta), and can assign a quantity to an item not yet recorded at that Location, but never touches the item's rows at other Locations and cannot create a new pantry item.
+_Avoid_: inventory count, audit, reconciliation, stock entry
+
 **Minimum quantity**:
 An optional, per-pantry-item threshold in the item's own `unit` (see Unit), set by the household to mark when they consider that item low. Unset (not zero — zero already means out of stock) disables low-stock tracking for that item entirely. Determines Low stock, below.
 _Avoid_: reorder point, reorder threshold, par level
