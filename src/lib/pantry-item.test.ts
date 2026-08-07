@@ -200,6 +200,20 @@ describe("sortPantryItems", () => {
     ).toEqual([first, second]);
   });
 
+  it("keeps accented letters distinct from their unaccented base (locale-aware, not diacritic-insensitive)", () => {
+    // A real distinction (rather than a tie falling through to the
+    // input-order tiebreak) sorts these the same way regardless of which
+    // order they start in — a tie would instead just preserve whichever
+    // input order was given, differing between the two permutations below.
+    const art = { id: "1", name: "Art", quantity: "1" };
+    const artAccented = { id: "2", name: "Ärt", quantity: "1" };
+    const sortState = { column: "name", direction: "ascending" } as const;
+
+    expect(sortPantryItems([art, artAccented], sortState)).toEqual(
+      sortPantryItems([artAccented, art], sortState),
+    );
+  });
+
   it("does not mutate the input array", () => {
     const copy = [...items];
     sortPantryItems(items, { column: "name", direction: "ascending" });

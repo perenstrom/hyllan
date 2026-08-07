@@ -89,10 +89,14 @@ export function sortPantryItems<T extends SortableItem>(
     return items;
   }
   const sign = sortState.direction === "ascending" ? 1 : -1;
+  // "accent" sensitivity is case-insensitive but keeps accented letters
+  // distinct from their unaccented base (unlike "base", which would also
+  // fold e.g. Swedish "a" and "ä" together) — matching the ticket's
+  // "case-insensitive" (not "diacritic-insensitive") requirement.
   const compare: (a: T, b: T) => number =
     sortState.column === "name"
       ? (a, b) =>
-          a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+          a.name.localeCompare(b.name, undefined, { sensitivity: "accent" })
       : (a, b) => Number(a.quantity) - Number(b.quantity);
   return [...items].sort((a, b) => compare(a, b) * sign);
 }

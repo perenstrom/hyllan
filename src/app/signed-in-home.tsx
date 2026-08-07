@@ -87,6 +87,42 @@ function readStoredSortState(): PantrySortState {
 const SORT_HEADER_CLASS =
   "flex items-center gap-1 font-medium text-zinc-600 dark:text-zinc-400";
 
+type SortableHeaderProps = {
+  column: PantrySortColumn;
+  label: string;
+  sortState: PantrySortState;
+  onSort: (column: PantrySortColumn) => void;
+};
+
+// Aria-sort belongs on the `<th>` itself (the actual ARIA columnheader) —
+// a `<button>` doesn't support it — while the button inside stays the
+// focusable, clickable control cycling the column's sort state.
+function SortableHeader({
+  column,
+  label,
+  sortState,
+  onSort,
+}: SortableHeaderProps) {
+  const direction = sortState?.column === column ? sortState.direction : null;
+  return (
+    <th className="px-2 py-2 sm:px-4" aria-sort={direction ?? "none"}>
+      <button
+        type="button"
+        onClick={() => onSort(column)}
+        className={SORT_HEADER_CLASS}
+      >
+        {label}
+        {direction === "ascending" && (
+          <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+        )}
+        {direction === "descending" && (
+          <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
+        )}
+      </button>
+    </th>
+  );
+}
+
 export function SignedInHome({ items }: Props) {
   const [optimisticItems, addOptimisticUpdate] = useOptimistic(
     items,
@@ -110,10 +146,6 @@ export function SignedInHome({ items }: Props) {
       }
       return next;
     });
-  }
-
-  function ariaSortFor(column: PantrySortColumn) {
-    return sortState?.column === column ? sortState.direction : "none";
   }
 
   // Order is frozen against optimistic quantity/name changes (ADR 0004,
@@ -174,48 +206,18 @@ export function SignedInHome({ items }: Props) {
             <table className="w-full min-w-[320px] text-left text-sm">
               <thead className="border-b border-zinc-200 dark:border-zinc-800">
                 <tr>
-                  <th
-                    className="px-2 py-2 sm:px-4"
-                    aria-sort={ariaSortFor("name")}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleHeaderClick("name")}
-                      className={SORT_HEADER_CLASS}
-                    >
-                      Name
-                      {sortState?.column === "name" &&
-                        (sortState.direction === "ascending" ? (
-                          <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
-                        ) : (
-                          <ArrowDown
-                            className="h-3.5 w-3.5"
-                            aria-hidden="true"
-                          />
-                        ))}
-                    </button>
-                  </th>
-                  <th
-                    className="px-2 py-2 sm:px-4"
-                    aria-sort={ariaSortFor("amount")}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleHeaderClick("amount")}
-                      className={SORT_HEADER_CLASS}
-                    >
-                      Amount
-                      {sortState?.column === "amount" &&
-                        (sortState.direction === "ascending" ? (
-                          <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
-                        ) : (
-                          <ArrowDown
-                            className="h-3.5 w-3.5"
-                            aria-hidden="true"
-                          />
-                        ))}
-                    </button>
-                  </th>
+                  <SortableHeader
+                    column="name"
+                    label="Name"
+                    sortState={sortState}
+                    onSort={handleHeaderClick}
+                  />
+                  <SortableHeader
+                    column="amount"
+                    label="Amount"
+                    sortState={sortState}
+                    onSort={handleHeaderClick}
+                  />
                   <th className="px-2 py-2 font-medium text-zinc-600 sm:px-4 dark:text-zinc-400">
                     Actions
                   </th>
