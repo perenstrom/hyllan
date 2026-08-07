@@ -16,7 +16,7 @@ test("deleting the account cascades to the household and pantry items, and signs
 
   await page.getByRole("link", { name: "+ Add item" }).click();
   await page.getByLabel("Name").fill("Rice");
-  await page.getByLabel("Quantity").fill("2");
+  await page.getByLabel("Quantity", { exact: true }).fill("2");
   await page.getByLabel("Unit").selectOption("kg");
   await page.getByRole("button", { name: "Add item" }).click();
   await expect(page.getByRole("cell", { name: "2 kg" })).toBeVisible();
