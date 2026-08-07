@@ -2,7 +2,7 @@
 
 import { ArrowDown, ArrowUp } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useOptimistic, useState } from "react";
+import { useMemo, useOptimistic, useState } from "react";
 
 import { AppHeader } from "./app-header";
 import { MinusIcon, PencilIcon, PlusIcon, TrashIcon } from "./icons";
@@ -96,16 +96,20 @@ export function SignedInHome({ items }: Props) {
   const [sortState, setSortState] =
     useState<PantrySortState>(readStoredSortState);
 
-  useEffect(() => {
-    if (sortState) {
-      window.localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(sortState));
-    } else {
-      window.localStorage.removeItem(SORT_STORAGE_KEY);
-    }
-  }, [sortState]);
-
+  // Persisted directly in the click handler, not a useEffect watching
+  // sortState — the write only ever happens in response to this click
+  // (CODING_STANDARDS.md, "Don't use an Effect to respond to a user
+  // action").
   function handleHeaderClick(column: PantrySortColumn) {
-    setSortState((current) => nextPantrySortState(current, column));
+    setSortState((current) => {
+      const next = nextPantrySortState(current, column);
+      if (next) {
+        window.localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(next));
+      } else {
+        window.localStorage.removeItem(SORT_STORAGE_KEY);
+      }
+      return next;
+    });
   }
 
   function ariaSortFor(column: PantrySortColumn) {
