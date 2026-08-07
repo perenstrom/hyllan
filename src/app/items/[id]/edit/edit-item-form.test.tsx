@@ -14,6 +14,7 @@ const item = {
   name: "Rice",
   quantity: "2",
   unit: "kg" as const,
+  minimumQuantity: null as string | null,
 };
 
 describe("EditItemForm", () => {
@@ -27,6 +28,21 @@ describe("EditItemForm", () => {
     expect(screen.getByLabelText("Name")).toHaveValue("Rice");
     expect(screen.getByLabelText("Quantity")).toHaveValue(2);
     expect(screen.getByLabelText("Unit")).toHaveValue("kg");
+  });
+
+  it("leaves the minimum quantity field blank when the item has none set", () => {
+    render(<EditItemForm item={item} />);
+
+    expect(
+      screen.getByLabelText<HTMLInputElement>("Minimum quantity (optional)")
+        .value,
+    ).toBe("");
+  });
+
+  it("prefills the minimum quantity field when the item has one set", () => {
+    render(<EditItemForm item={{ ...item, minimumQuantity: "1" }} />);
+
+    expect(screen.getByLabelText("Minimum quantity (optional)")).toHaveValue(1);
   });
 
   it("submits through editItem bound to the item's id", () => {

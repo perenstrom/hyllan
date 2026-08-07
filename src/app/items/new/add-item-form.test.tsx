@@ -22,6 +22,15 @@ describe("AddItemForm", () => {
     expect(screen.getByLabelText("Unit")).toHaveValue("count");
   });
 
+  it("leaves the optional minimum quantity field blank by default", () => {
+    render(<AddItemForm />);
+
+    expect(
+      screen.getByLabelText<HTMLInputElement>("Minimum quantity (optional)")
+        .value,
+    ).toBe("");
+  });
+
   it("offers every unit in the fixed set", () => {
     render(<AddItemForm />);
 

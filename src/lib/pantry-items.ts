@@ -168,6 +168,7 @@ export async function addPantryItem<TQueryResult extends PgQueryResultHKT>(
         name: input.name.trim(),
         quantity: input.quantity,
         unit: input.unit,
+        minimumQuantity: input.minimumQuantity ?? null,
       })
       .returning();
 
@@ -204,9 +205,7 @@ export async function addPantryItem<TQueryResult extends PgQueryResultHKT>(
 // increment/decrement clicks on the same item can't race — the second
 // transaction blocks until the first commits, rather than both computing
 // from the same stale quantity and one update getting lost.
-async function adjustPantryItemQuantity<
-  TQueryResult extends PgQueryResultHKT,
->(
+async function adjustPantryItemQuantity<TQueryResult extends PgQueryResultHKT>(
   db: Database<TQueryResult>,
   householdId: string,
   itemId: string,
@@ -267,6 +266,7 @@ export async function updatePantryItem<TQueryResult extends PgQueryResultHKT>(
         name: input.name.trim(),
         quantity: input.quantity,
         unit: input.unit,
+        minimumQuantity: input.minimumQuantity ?? null,
         updatedAt: new Date(),
       })
       .where(scopedToItem(householdId, itemId))

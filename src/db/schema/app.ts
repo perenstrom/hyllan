@@ -59,6 +59,10 @@ export const pantryItems = pgTable(
     // number to avoid floating-point precision loss on decimal quantities.
     quantity: numeric("quantity").notNull().default("0"),
     unit: pantryItemUnitEnum("unit").notNull().default("count"),
+    // Unset (null, not zero) disables low-stock tracking for the item
+    // (CONTEXT.md "Minimum quantity") — in the item's own `unit`, same
+    // numeric shape as `quantity`.
+    minimumQuantity: numeric("minimum_quantity"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -72,5 +76,11 @@ export const pantryItems = pgTable(
       sql`lower(${table.name})`,
     ),
     check("pantry_items_quantity_non_negative", sql`${table.quantity} >= 0`),
+    // NULL passes a CHECK constraint unmodified, so this only constrains
+    // the column once a household actually sets a threshold.
+    check(
+      "pantry_items_minimum_quantity_non_negative",
+      sql`${table.minimumQuantity} >= 0`,
+    ),
   ],
 );
