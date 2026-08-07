@@ -105,6 +105,10 @@ export type PantryItemFormInput = {
   name: string;
   quantity: string;
   unit: PantryItemUnit;
+  // Optional so existing callers that don't care about the threshold (e.g.
+  // most add/adjust call sites) don't have to spell out "unset" — callers
+  // that omit it get the same "no threshold" behavior as passing null.
+  minimumQuantity?: string | null;
 };
 
 export type ParsePantryItemInputResult =
@@ -136,5 +140,73 @@ export function parsePantryItemInput(
     return { ok: false, error: "Choose a valid unit." };
   }
 
-  return { ok: true, value: { name, quantity, unit } };
+  // Blank input leaves low-stock tracking off (CONTEXT.md "Minimum
+  // quantity") rather than being rejected — only a non-blank, invalid value
+  // is a validation error.
+  const rawMinimumQuantity = formData.get("minimumQuantity");
+  let minimumQuantity: string | null = null;
+  if (typeof rawMinimumQuantity === "string" && rawMinimumQuantity.trim()) {
+    minimumQuantity = parseQuantity(rawMinimumQuantity);
+    if (minimumQuantity === null) {
+      return {
+        ok: false,
+        error: "Minimum quantity must be zero or a positive number.",
+      };
+    }
+  }
+
+  return { ok: true, value: { name, quantity, unit, minimumQuantity } };
+}
+
+export type PantryItemStockStatus = "in-stock" | "low-stock" | "out-of-stock";
+
+// Mutually exclusive by construction (CONTEXT.md "Low stock"): a zeroed
+// item is out of stock only, regardless of its minimum quantity, so the
+// zero check comes first. An item with no minimum quantity set is never
+// low stock.
+export function getPantryItemStockStatus(
+  quantity: string,
+  minimumQuantity: string | null,
+): PantryItemStockStatus {
+  if (Number(quantity) === 0) {
+    return "out-of-stock";
+  }
+  if (minimumQuantity !== null && Number(quantity) <= Number(minimumQuantity)) {
+    return "low-stock";
+  }
+  return "in-stock";
+}
+
+export type PantryStatusFilter = Record<PantryItemStockStatus, boolean>;
+
+export const DEFAULT_STATUS_FILTER: PantryStatusFilter = {
+  "in-stock": true,
+  "low-stock": true,
+  "out-of-stock": true,
+};
+
+export function isDefaultStatusFilter(filter: PantryStatusFilter): boolean {
+  return filter["in-stock"] && filter["low-stock"] && filter["out-of-stock"];
+}
+
+export function activeStatusFilterCount(filter: PantryStatusFilter): number {
+  return Object.values(filter).filter(Boolean).length;
+}
+
+type StatusFilterableItem = {
+  quantity: string;
+  minimumQuantity: string | null;
+};
+
+// A pure client-side transform over the fetched row list (ADR 0004,
+// PER-251), composing with sortPantryItems the same way PER-249's sort
+// does — neither is a server query.
+export function filterPantryItemsByStatus<T extends StatusFilterableItem>(
+  items: T[],
+  filter: PantryStatusFilter,
+): T[] {
+  return items.filter(
+    (item) =>
+      filter[getPantryItemStockStatus(item.quantity, item.minimumQuantity)],
+  );
 }

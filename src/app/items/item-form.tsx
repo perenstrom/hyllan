@@ -17,6 +17,7 @@ type ItemFormDefaultValues = {
   name: string;
   quantity: string;
   unit: PantryItemUnit;
+  minimumQuantity: string | null;
 };
 
 type Props = {
@@ -106,6 +107,28 @@ export function ItemForm({
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label
+            htmlFor="minimumQuantity"
+            className="text-sm text-zinc-600 dark:text-zinc-400"
+          >
+            Minimum quantity (optional)
+          </label>
+          <input
+            id="minimumQuantity"
+            name="minimumQuantity"
+            type="number"
+            min="0"
+            step="any"
+            defaultValue={defaultValues?.minimumQuantity ?? ""}
+            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+          />
+          <p className="text-xs text-zinc-500 dark:text-zinc-500">
+            Same unit as quantity. Leave blank to turn off low-stock tracking
+            for this item.
+          </p>
         </div>
 
         {state?.error && <p className="text-sm text-red-600">{state.error}</p>}

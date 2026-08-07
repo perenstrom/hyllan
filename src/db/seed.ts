@@ -20,11 +20,16 @@ const DEV_EMAIL = "dev@example.com";
 const DEV_PASSWORD = "development";
 
 const SEED_ITEMS: AddPantryItemInput[] = [
-  { name: "Rice", quantity: "2", unit: "kg" },
-  { name: "Olive oil", quantity: "1", unit: "l" },
-  { name: "Canned tomatoes", quantity: "4", unit: "count" },
-  { name: "Pasta", quantity: "3", unit: "pack" },
-  { name: "Coffee", quantity: "500", unit: "g" },
+  { name: "Rice", quantity: "2", unit: "kg", minimumQuantity: "1" },
+  { name: "Olive oil", quantity: "1", unit: "l", minimumQuantity: null },
+  {
+    name: "Canned tomatoes",
+    quantity: "4",
+    unit: "count",
+    minimumQuantity: null,
+  },
+  { name: "Pasta", quantity: "3", unit: "pack", minimumQuantity: null },
+  { name: "Coffee", quantity: "500", unit: "g", minimumQuantity: "600" },
 ];
 
 async function findOrCreateAuthUser(

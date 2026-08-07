@@ -91,7 +91,7 @@ describe("addItem", () => {
     expect(addPantryItemMock).toHaveBeenCalledExactlyOnceWith(
       {},
       "household-1",
-      { name: "Rice", quantity: "2", unit: "kg" },
+      { name: "Rice", quantity: "2", unit: "kg", minimumQuantity: null },
     );
     expect(redirectMock).toHaveBeenCalledWith("/");
   });
@@ -202,9 +202,7 @@ describe("incrementItem / decrementItem / deleteItem", () => {
   it("redirects to login when there is no session, without mutating anything", async () => {
     getClaimsMock.mockResolvedValue({ data: null });
 
-    await expect(incrementItem("item-1")).rejects.toThrow(
-      "REDIRECT:/login",
-    );
+    await expect(incrementItem("item-1")).rejects.toThrow("REDIRECT:/login");
     expect(incrementPantryItemQuantityMock).not.toHaveBeenCalled();
   });
 });
@@ -235,7 +233,7 @@ describe("editItem", () => {
       {},
       "household-1",
       "item-1",
-      { name: "Beans", quantity: "3", unit: "kg" },
+      { name: "Beans", quantity: "3", unit: "kg", minimumQuantity: null },
     );
     expect(redirectMock).toHaveBeenCalledWith("/");
   });
@@ -265,9 +263,7 @@ describe("editItem", () => {
   });
 
   it("returns a friendly error when the new name collides with another item", async () => {
-    updatePantryItemMock.mockRejectedValue(
-      new DuplicatePantryItemNameError(),
-    );
+    updatePantryItemMock.mockRejectedValue(new DuplicatePantryItemNameError());
 
     const state = await editItem(
       "item-1",

@@ -7,15 +7,20 @@ import { useMemo, useOptimistic, useState } from "react";
 import { AppHeader } from "./app-header";
 import { MinusIcon, PencilIcon, PlusIcon, TrashIcon } from "./icons";
 import { decrementItem, deleteItem, incrementItem } from "./items/actions";
+import { StatusFilterDropdown } from "./status-filter-dropdown";
 import type { pantryItems } from "@/db/schema";
 import {
+  DEFAULT_STATUS_FILTER,
   decrementQuantity,
+  filterPantryItemsByStatus,
   formatQuantity,
+  getPantryItemStockStatus,
   incrementQuantity,
   nextPantrySortState,
   sortPantryItems,
   type PantrySortColumn,
   type PantrySortState,
+  type PantryStatusFilter,
 } from "@/lib/pantry-item";
 
 type PantryItemRow = typeof pantryItems.$inferSelect;
@@ -58,7 +63,41 @@ const ACTION_ICON_CLASS = "h-4 w-4";
 const OUT_OF_STOCK_ROW_CLASS =
   "bg-red-100 text-zinc-600 dark:bg-red-950 dark:text-zinc-300";
 
+// Same tint-plus-sr-only-label treatment as out-of-stock, but amber rather
+// than red (ADR 0004, PER-251) — contrast-checked against the same WCAG AA
+// bar, reusing the same zinc-600/zinc-300 text pairing.
+const LOW_STOCK_ROW_CLASS =
+  "bg-amber-100 text-zinc-600 dark:bg-amber-950 dark:text-zinc-300";
+
 const SORT_STORAGE_KEY = "hyllan:pantry-sort";
+const STATUS_FILTER_STORAGE_KEY = "hyllan:pantry-status-filter";
+
+function readStoredStatusFilter(): PantryStatusFilter {
+  if (typeof window === "undefined") {
+    return DEFAULT_STATUS_FILTER;
+  }
+  try {
+    const raw = window.localStorage.getItem(STATUS_FILTER_STORAGE_KEY);
+    if (!raw) {
+      return DEFAULT_STATUS_FILTER;
+    }
+    const parsed = JSON.parse(raw) as Partial<PantryStatusFilter> | null;
+    if (
+      typeof parsed?.["in-stock"] === "boolean" &&
+      typeof parsed?.["low-stock"] === "boolean" &&
+      typeof parsed?.["out-of-stock"] === "boolean"
+    ) {
+      return {
+        "in-stock": parsed["in-stock"],
+        "low-stock": parsed["low-stock"],
+        "out-of-stock": parsed["out-of-stock"],
+      };
+    }
+    return DEFAULT_STATUS_FILTER;
+  } catch {
+    return DEFAULT_STATUS_FILTER;
+  }
+}
 
 function readStoredSortState(): PantrySortState {
   if (typeof window === "undefined") {
@@ -131,6 +170,9 @@ export function SignedInHome({ items }: Props) {
 
   const [sortState, setSortState] =
     useState<PantrySortState>(readStoredSortState);
+  const [statusFilter, setStatusFilter] = useState<PantryStatusFilter>(
+    readStoredStatusFilter,
+  );
 
   // Persisted directly in the click handler, not a useEffect watching
   // sortState — the write only ever happens in response to this click
@@ -148,6 +190,15 @@ export function SignedInHome({ items }: Props) {
     });
   }
 
+  // Same "write in the handler, not an Effect" rule as sort state above.
+  function handleStatusFilterChange(next: PantryStatusFilter) {
+    setStatusFilter(next);
+    window.localStorage.setItem(
+      STATUS_FILTER_STORAGE_KEY,
+      JSON.stringify(next),
+    );
+  }
+
   // Order is frozen against optimistic quantity/name changes (ADR 0004,
   // PER-249) — re-sorting only when the sort state changes or the set of
   // item ids changes (add/delete), never when an existing item's values
@@ -162,9 +213,23 @@ export function SignedInHome({ items }: Props) {
     () => new Map(optimisticItems.map((item) => [item.id, item])),
     [optimisticItems],
   );
+  // Filter membership, unlike sort order, tracks the live optimistic
+  // quantity — a row must disappear the instant its status leaves the
+  // filter (e.g. an optimistic decrement to zero), not stay frozen the way
+  // ordering does.
+  const visibleIds = useMemo(
+    () =>
+      new Set(
+        filterPantryItemsByStatus(optimisticItems, statusFilter).map(
+          (item) => item.id,
+        ),
+      ),
+    [optimisticItems, statusFilter],
+  );
   const displayItems = orderedIds
     .map((id) => itemsById.get(id))
-    .filter((item): item is PantryItemRow => item !== undefined);
+    .filter((item): item is PantryItemRow => item !== undefined)
+    .filter((item) => visibleIds.has(item.id));
 
   async function handleIncrement(itemId: string) {
     addOptimisticUpdate({ itemId, type: "increment" });
@@ -184,17 +249,29 @@ export function SignedInHome({ items }: Props) {
           <h1 className="text-lg font-semibold text-black dark:text-zinc-50">
             Your pantry
           </h1>
-          <Link
-            href="/items/new"
-            className="rounded bg-black px-3 py-1.5 text-sm font-medium text-white dark:bg-zinc-50 dark:text-black"
-          >
-            + Add item
-          </Link>
+          <div className="flex items-center gap-2">
+            {optimisticItems.length > 0 && (
+              <StatusFilterDropdown
+                filter={statusFilter}
+                onChange={handleStatusFilterChange}
+              />
+            )}
+            <Link
+              href="/items/new"
+              className="rounded bg-black px-3 py-1.5 text-sm font-medium text-white dark:bg-zinc-50 dark:text-black"
+            >
+              + Add item
+            </Link>
+          </div>
         </div>
 
         {optimisticItems.length === 0 ? (
           <p className="flex flex-1 items-center justify-center text-lg text-zinc-600 dark:text-zinc-400">
             Your pantry is empty.
+          </p>
+        ) : displayItems.length === 0 ? (
+          <p className="flex flex-1 items-center justify-center text-lg text-zinc-600 dark:text-zinc-400">
+            No items match the current filter.
           </p>
         ) : (
           <div className="overflow-x-auto sm:rounded-lg sm:border sm:border-zinc-200 dark:sm:border-zinc-800">
@@ -225,18 +302,28 @@ export function SignedInHome({ items }: Props) {
               </thead>
               <tbody>
                 {displayItems.map((item) => {
-                  const outOfStock = Number(item.quantity) === 0;
+                  const status = getPantryItemStockStatus(
+                    item.quantity,
+                    item.minimumQuantity,
+                  );
+                  const outOfStock = status === "out-of-stock";
+                  const rowStatusClass = outOfStock
+                    ? OUT_OF_STOCK_ROW_CLASS
+                    : status === "low-stock"
+                      ? LOW_STOCK_ROW_CLASS
+                      : "";
                   return (
                     <tr
                       key={item.id}
-                      className={`border-b border-zinc-100 last:border-0 dark:border-zinc-900 ${
-                        outOfStock ? OUT_OF_STOCK_ROW_CLASS : ""
-                      }`}
+                      className={`border-b border-zinc-100 last:border-0 dark:border-zinc-900 ${rowStatusClass}`}
                     >
                       <td className="px-2 py-2 sm:px-4">
                         {item.name}
-                        {outOfStock && (
+                        {status === "out-of-stock" && (
                           <span className="sr-only"> Out of stock</span>
+                        )}
+                        {status === "low-stock" && (
+                          <span className="sr-only"> Low stock</span>
                         )}
                       </td>
                       <td className="px-2 py-2 sm:px-4">

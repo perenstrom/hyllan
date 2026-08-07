@@ -5,7 +5,13 @@ import { ItemForm } from "../../item-form";
 import type { PantryItemUnit } from "@/lib/pantry-item";
 
 type Props = {
-  item: { id: string; name: string; quantity: string; unit: PantryItemUnit };
+  item: {
+    id: string;
+    name: string;
+    quantity: string;
+    unit: PantryItemUnit;
+    minimumQuantity: string | null;
+  };
 };
 
 export function EditItemForm({ item }: Props) {
@@ -19,6 +25,7 @@ export function EditItemForm({ item }: Props) {
         name: item.name,
         quantity: item.quantity,
         unit: item.unit,
+        minimumQuantity: item.minimumQuantity,
       }}
     />
   );

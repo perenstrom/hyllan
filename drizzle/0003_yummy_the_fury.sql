@@ -1,0 +1,2 @@
+ALTER TABLE "pantry_items" ADD COLUMN "minimum_quantity" numeric;--> statement-breakpoint
+ALTER TABLE "pantry_items" ADD CONSTRAINT "pantry_items_minimum_quantity_non_negative" CHECK ("pantry_items"."minimum_quantity" >= 0);

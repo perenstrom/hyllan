@@ -148,8 +148,10 @@ describe("pantry-items", () => {
     // Whichever add wins the race gets inserted; the loser retries as a
     // merge against a differently-unit'd row and must still be rejected
     // rather than silently summed — so exactly one of the two survives.
-    const succeeded = a.status === "fulfilled" ? a : b.status === "fulfilled" ? b : null;
-    const failed = a.status === "rejected" ? a : b.status === "rejected" ? b : null;
+    const succeeded =
+      a.status === "fulfilled" ? a : b.status === "fulfilled" ? b : null;
+    const failed =
+      a.status === "rejected" ? a : b.status === "rejected" ? b : null;
     if (!succeeded || !failed) {
       throw new Error("expected exactly one add to succeed and one to fail");
     }
@@ -200,6 +202,57 @@ describe("pantry-items", () => {
     ).rejects.toThrow();
   });
 
+  it("persists a minimum quantity when provided", async () => {
+    const item = await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+      minimumQuantity: "1",
+    });
+
+    expect(item.minimumQuantity).toBe("1");
+  });
+
+  it("leaves minimum quantity null when omitted", async () => {
+    const item = await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+    });
+
+    expect(item.minimumQuantity).toBeNull();
+  });
+
+  it("does not change an existing item's minimum quantity when a same-name-and-unit add merges into it", async () => {
+    await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+      minimumQuantity: "1",
+    });
+
+    const merged = await addPantryItem(db, householdId, {
+      name: "RICE",
+      quantity: "1",
+      unit: "kg",
+    });
+
+    expect(merged.quantity).toBe("3");
+    expect(merged.minimumQuantity).toBe("1");
+  });
+
+  it("enforces the minimum-quantity non-negative check constraint at the database level", async () => {
+    await expect(
+      db.insert(pantryItems).values({
+        householdId,
+        name: "Rice",
+        quantity: "1",
+        unit: "kg",
+        minimumQuantity: "-1",
+      }),
+    ).rejects.toThrow();
+  });
+
   it("lists items for a household ordered by creation", async () => {
     await addPantryItem(db, householdId, {
       name: "Rice",
@@ -241,11 +294,7 @@ describe("incrementPantryItemQuantity / decrementPantryItemQuantity", () => {
       unit: "kg",
     });
 
-    const updated = await incrementPantryItemQuantity(
-      db,
-      householdId,
-      item.id,
-    );
+    const updated = await incrementPantryItemQuantity(db, householdId, item.id);
 
     expect(updated?.quantity).toBe("3");
   });
@@ -257,11 +306,7 @@ describe("incrementPantryItemQuantity / decrementPantryItemQuantity", () => {
       unit: "kg",
     });
 
-    const updated = await decrementPantryItemQuantity(
-      db,
-      householdId,
-      item.id,
-    );
+    const updated = await decrementPantryItemQuantity(db, householdId, item.id);
 
     expect(updated?.quantity).toBe("1");
   });
@@ -273,11 +318,7 @@ describe("incrementPantryItemQuantity / decrementPantryItemQuantity", () => {
       unit: "kg",
     });
 
-    const updated = await decrementPantryItemQuantity(
-      db,
-      householdId,
-      item.id,
-    );
+    const updated = await decrementPantryItemQuantity(db, householdId, item.id);
 
     expect(updated?.quantity).toBe("0");
   });
@@ -298,11 +339,7 @@ describe("incrementPantryItemQuantity / decrementPantryItemQuantity", () => {
       unit: "kg",
     });
 
-    const updated = await incrementPantryItemQuantity(
-      db,
-      householdId,
-      item.id,
-    );
+    const updated = await incrementPantryItemQuantity(db, householdId, item.id);
 
     expect(updated).toBeUndefined();
   });
@@ -343,6 +380,41 @@ describe("updatePantryItem", () => {
       quantity: "5",
       unit: "g",
     });
+  });
+
+  it("updates the minimum quantity", async () => {
+    const item = await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+      minimumQuantity: "1",
+    });
+
+    const updated = await updatePantryItem(db, householdId, item.id, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+      minimumQuantity: "3",
+    });
+
+    expect(updated?.minimumQuantity).toBe("3");
+  });
+
+  it("clears the minimum quantity when the update omits it", async () => {
+    const item = await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+      minimumQuantity: "1",
+    });
+
+    const updated = await updatePantryItem(db, householdId, item.id, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+    });
+
+    expect(updated?.minimumQuantity).toBeNull();
   });
 
   it("throws a DuplicatePantryItemNameError when the new name collides with another item", async () => {

@@ -33,6 +33,7 @@ function itemRow(
     name: "Rice",
     quantity: "2",
     unit: "kg" as const,
+    minimumQuantity: null as string | null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -98,6 +99,42 @@ describe("SignedInHome", () => {
     expect(screen.queryByText("Out of stock")).not.toBeInTheDocument();
     const row = screen.getByText("Rice").closest("tr");
     expect(row).not.toHaveClass("bg-red-100");
+  });
+
+  it("tints a low-stock row amber with a screen-reader-only label, when quantity is at or below its minimum", () => {
+    render(
+      <SignedInHome
+        items={[itemRow({ quantity: "1", minimumQuantity: "2" })]}
+      />,
+    );
+
+    expect(screen.getByText("Low stock")).toHaveClass("sr-only");
+    const row = screen.getByText("Rice").closest("tr");
+    expect(row).toHaveClass("bg-amber-100", "dark:bg-amber-950");
+  });
+
+  it("treats out of stock (quantity zero) as taking precedence over low stock, never both", () => {
+    render(
+      <SignedInHome
+        items={[itemRow({ quantity: "0", minimumQuantity: "2" })]}
+      />,
+    );
+
+    expect(screen.getByText("Out of stock")).toHaveClass("sr-only");
+    expect(screen.queryByText("Low stock")).not.toBeInTheDocument();
+    const row = screen.getByText("Rice").closest("tr");
+    expect(row).toHaveClass("bg-red-100");
+    expect(row).not.toHaveClass("bg-amber-100");
+  });
+
+  it("never treats an item with no minimum quantity set as low stock", () => {
+    render(
+      <SignedInHome
+        items={[itemRow({ quantity: "1", minimumQuantity: null })]}
+      />,
+    );
+
+    expect(screen.queryByText("Low stock")).not.toBeInTheDocument();
   });
 
   it("removes the content container's horizontal padding below sm so the table can sit flush, restoring it at/above sm", () => {
@@ -411,6 +448,128 @@ describe("SignedInHome", () => {
       expect(nameCells()).toEqual(["Cherry", "Banana", "apple"]);
 
       resolveIncrement();
+    });
+  });
+
+  describe("status filter (PER-251)", () => {
+    function statusItems() {
+      return [
+        itemRow({
+          id: "11111111-1111-1111-1111-111111111111",
+          name: "In stock item",
+          quantity: "5",
+          minimumQuantity: null,
+        }),
+        itemRow({
+          id: "22222222-2222-2222-2222-222222222222",
+          name: "Low stock item",
+          quantity: "1",
+          minimumQuantity: "2",
+        }),
+        itemRow({
+          id: "33333333-3333-3333-3333-333333333333",
+          name: "Out of stock item",
+          quantity: "0",
+          minimumQuantity: null,
+        }),
+      ];
+    }
+
+    function openStatusDropdown() {
+      fireEvent.click(screen.getByRole("button", { name: /^Status/ }));
+    }
+
+    it("does not render the dropdown when the pantry is empty", () => {
+      render(<SignedInHome items={[]} />);
+
+      expect(
+        screen.queryByRole("button", { name: /^Status/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows every item by default, with all three boxes checked", () => {
+      render(<SignedInHome items={statusItems()} />);
+      openStatusDropdown();
+
+      expect(screen.getByRole("checkbox", { name: "In stock" })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Low stock" })).toBeChecked();
+      expect(
+        screen.getByRole("checkbox", { name: "Out of stock" }),
+      ).toBeChecked();
+      expect(screen.getByText("In stock item")).toBeInTheDocument();
+      expect(screen.getByText("Low stock item")).toBeInTheDocument();
+      expect(screen.getByText("Out of stock item")).toBeInTheDocument();
+    });
+
+    it("hides rows whose status is unchecked and shows the trigger's active count", () => {
+      render(<SignedInHome items={statusItems()} />);
+      openStatusDropdown();
+
+      fireEvent.click(screen.getByRole("checkbox", { name: "Low stock" }));
+
+      expect(screen.queryByText("Low stock item")).not.toBeInTheDocument();
+      expect(screen.getByText("In stock item")).toBeInTheDocument();
+      expect(screen.getByText("Out of stock item")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Status (2/3)" }),
+      ).toBeInTheDocument();
+    });
+
+    it("shows the empty-state message when every box is unchecked, without blocking the action", () => {
+      render(<SignedInHome items={statusItems()} />);
+      openStatusDropdown();
+
+      fireEvent.click(screen.getByRole("checkbox", { name: "In stock" }));
+      fireEvent.click(screen.getByRole("checkbox", { name: "Low stock" }));
+      fireEvent.click(screen.getByRole("checkbox", { name: "Out of stock" }));
+
+      expect(
+        screen.getByText("No items match the current filter."),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    });
+
+    it("persists the filter to localStorage and restores it on the next render", () => {
+      const { unmount } = render(<SignedInHome items={statusItems()} />);
+      openStatusDropdown();
+      fireEvent.click(screen.getByRole("checkbox", { name: "Low stock" }));
+      unmount();
+
+      render(<SignedInHome items={statusItems()} />);
+
+      expect(screen.queryByText("Low stock item")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Status (2/3)" }),
+      ).toBeInTheDocument();
+    });
+
+    it("hides a row the instant an optimistic update moves it out of the active filter", async () => {
+      let resolveDecrement: () => void = () => {};
+      decrementItemMock.mockReturnValue(
+        new Promise<void>((resolve) => {
+          resolveDecrement = resolve;
+        }),
+      );
+
+      render(<SignedInHome items={statusItems()} />);
+      openStatusDropdown();
+      fireEvent.click(screen.getByRole("checkbox", { name: "Out of stock" }));
+      expect(screen.getByText("In stock item")).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Decrease In stock item quantity" }),
+      );
+      for (let i = 0; i < 4; i++) {
+        fireEvent.click(
+          screen.getByRole("button", {
+            name: "Decrease In stock item quantity",
+          }),
+        );
+      }
+
+      expect(screen.queryByText("In stock item")).not.toBeInTheDocument();
+
+      resolveDecrement();
     });
   });
 });
