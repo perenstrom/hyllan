@@ -52,6 +52,55 @@ export function decrementQuantity(quantity: string): string {
   return next > 0 ? next.toString() : "0";
 }
 
+export type PantrySortColumn = "name" | "amount";
+export type PantrySortDirection = "ascending" | "descending";
+export type PantrySortState = {
+  column: PantrySortColumn;
+  direction: PantrySortDirection;
+} | null;
+
+// Three-state cycle per header (ADR 0004, PER-249): ascending -> descending
+// -> default (null), one column active at a time. Switching columns always
+// restarts at ascending regardless of the previous column's direction.
+export function nextPantrySortState(
+  current: PantrySortState,
+  column: PantrySortColumn,
+): PantrySortState {
+  if (!current || current.column !== column) {
+    return { column, direction: "ascending" };
+  }
+  return current.direction === "ascending"
+    ? { column, direction: "descending" }
+    : null;
+}
+
+type SortableItem = { name: string; quantity: string };
+
+// Amount sorts by the raw numeric quantity only, ignoring unit (ADR 0004) —
+// units carry no conversion behavior, so there's no meaningful cross-unit
+// order. Ties fall back to the incoming order via Array#sort's guaranteed
+// stability, which is the default createdAt-ascending order items already
+// arrive in from the server query — no explicit tiebreak needed.
+export function sortPantryItems<T extends SortableItem>(
+  items: T[],
+  sortState: PantrySortState,
+): T[] {
+  if (!sortState) {
+    return items;
+  }
+  const sign = sortState.direction === "ascending" ? 1 : -1;
+  // "accent" sensitivity is case-insensitive but keeps accented letters
+  // distinct from their unaccented base (unlike "base", which would also
+  // fold e.g. Swedish "a" and "ä" together) — matching the ticket's
+  // "case-insensitive" (not "diacritic-insensitive") requirement.
+  const compare: (a: T, b: T) => number =
+    sortState.column === "name"
+      ? (a, b) =>
+          a.name.localeCompare(b.name, undefined, { sensitivity: "accent" })
+      : (a, b) => Number(a.quantity) - Number(b.quantity);
+  return [...items].sort((a, b) => compare(a, b) * sign);
+}
+
 export type PantryItemFormInput = {
   name: string;
   quantity: string;
