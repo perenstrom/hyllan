@@ -5,9 +5,11 @@ import {
   formatQuantity,
   incrementQuantity,
   isPantryItemUnit,
+  nextPantrySortState,
   normalizePantryItemName,
   parsePantryItemInput,
   parseQuantity,
+  sortPantryItems,
 } from "./pantry-item";
 
 describe("isPantryItemUnit", () => {
@@ -118,6 +120,91 @@ describe("decrementQuantity", () => {
 
   it("floors a fractional quantity below one at zero", () => {
     expect(decrementQuantity("0.5")).toBe("0");
+  });
+});
+
+describe("nextPantrySortState", () => {
+  it("starts a fresh column at ascending", () => {
+    expect(nextPantrySortState(null, "name")).toEqual({
+      column: "name",
+      direction: "ascending",
+    });
+  });
+
+  it("cycles the same column from ascending to descending", () => {
+    expect(
+      nextPantrySortState({ column: "name", direction: "ascending" }, "name"),
+    ).toEqual({ column: "name", direction: "descending" });
+  });
+
+  it("cycles the same column from descending back to the default (null)", () => {
+    expect(
+      nextPantrySortState({ column: "name", direction: "descending" }, "name"),
+    ).toBeNull();
+  });
+
+  it("restarts a different column at ascending regardless of the previous direction", () => {
+    expect(
+      nextPantrySortState(
+        { column: "name", direction: "descending" },
+        "amount",
+      ),
+    ).toEqual({ column: "amount", direction: "ascending" });
+  });
+});
+
+describe("sortPantryItems", () => {
+  const rice = { id: "1", name: "Rice", quantity: "2" };
+  const apples = { id: "2", name: "apples", quantity: "10" };
+  const beans = { id: "3", name: "Beans", quantity: "1" };
+  const items = [rice, apples, beans];
+
+  it("returns the items unchanged for the default (null) sort state", () => {
+    expect(sortPantryItems(items, null)).toEqual(items);
+  });
+
+  it("sorts by name ascending, case-insensitively", () => {
+    expect(
+      sortPantryItems(items, { column: "name", direction: "ascending" }),
+    ).toEqual([apples, beans, rice]);
+  });
+
+  it("sorts by name descending, case-insensitively", () => {
+    expect(
+      sortPantryItems(items, { column: "name", direction: "descending" }),
+    ).toEqual([rice, beans, apples]);
+  });
+
+  it("sorts by amount ascending, by raw numeric quantity", () => {
+    expect(
+      sortPantryItems(items, { column: "amount", direction: "ascending" }),
+    ).toEqual([beans, rice, apples]);
+  });
+
+  it("sorts by amount descending, by raw numeric quantity", () => {
+    expect(
+      sortPantryItems(items, { column: "amount", direction: "descending" }),
+    ).toEqual([apples, rice, beans]);
+  });
+
+  it("breaks ties by falling back to the incoming (default createdAt) order", () => {
+    const first = { id: "1", name: "Tied", quantity: "5" };
+    const second = { id: "2", name: "Tied", quantity: "5" };
+    const tied = [first, second];
+
+    expect(
+      sortPantryItems(tied, { column: "amount", direction: "ascending" }),
+    ).toEqual([first, second]);
+    expect(
+      sortPantryItems(tied, { column: "amount", direction: "descending" }),
+    ).toEqual([first, second]);
+  });
+
+  it("does not mutate the input array", () => {
+    const copy = [...items];
+    sortPantryItems(items, { column: "name", direction: "ascending" });
+
+    expect(items).toEqual(copy);
   });
 });
 

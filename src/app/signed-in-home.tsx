@@ -1,7 +1,8 @@
 "use client";
 
+import { ArrowDown, ArrowUp } from "lucide-react";
 import Link from "next/link";
-import { useOptimistic } from "react";
+import { useEffect, useMemo, useOptimistic, useState } from "react";
 
 import { AppHeader } from "./app-header";
 import { MinusIcon, PencilIcon, PlusIcon, TrashIcon } from "./icons";
@@ -11,6 +12,10 @@ import {
   decrementQuantity,
   formatQuantity,
   incrementQuantity,
+  nextPantrySortState,
+  sortPantryItems,
+  type PantrySortColumn,
+  type PantrySortState,
 } from "@/lib/pantry-item";
 
 type PantryItemRow = typeof pantryItems.$inferSelect;
@@ -53,11 +58,77 @@ const ACTION_ICON_CLASS = "h-4 w-4";
 const OUT_OF_STOCK_ROW_CLASS =
   "bg-red-100 text-zinc-600 dark:bg-red-950 dark:text-zinc-300";
 
+const SORT_STORAGE_KEY = "hyllan:pantry-sort";
+
+function readStoredSortState(): PantrySortState {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    const raw = window.localStorage.getItem(SORT_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as Partial<
+      NonNullable<PantrySortState>
+    > | null;
+    if (
+      (parsed?.column === "name" || parsed?.column === "amount") &&
+      (parsed.direction === "ascending" || parsed.direction === "descending")
+    ) {
+      return { column: parsed.column, direction: parsed.direction };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+const SORT_HEADER_CLASS =
+  "flex items-center gap-1 font-medium text-zinc-600 dark:text-zinc-400";
+
 export function SignedInHome({ items }: Props) {
   const [optimisticItems, addOptimisticUpdate] = useOptimistic(
     items,
     applyQuantityUpdate,
   );
+
+  const [sortState, setSortState] =
+    useState<PantrySortState>(readStoredSortState);
+
+  useEffect(() => {
+    if (sortState) {
+      window.localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(sortState));
+    } else {
+      window.localStorage.removeItem(SORT_STORAGE_KEY);
+    }
+  }, [sortState]);
+
+  function handleHeaderClick(column: PantrySortColumn) {
+    setSortState((current) => nextPantrySortState(current, column));
+  }
+
+  function ariaSortFor(column: PantrySortColumn) {
+    return sortState?.column === column ? sortState.direction : "none";
+  }
+
+  // Order is frozen against optimistic quantity/name changes (ADR 0004,
+  // PER-249) — re-sorting only when the sort state changes or the set of
+  // item ids changes (add/delete), never when an existing item's values
+  // change, so rows don't jump under the cursor mid-click.
+  const itemIdsKey = optimisticItems.map((item) => item.id).join(",");
+  const orderedIds = useMemo(
+    () => sortPantryItems(optimisticItems, sortState).map((item) => item.id),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sortState, itemIdsKey],
+  );
+  const itemsById = useMemo(
+    () => new Map(optimisticItems.map((item) => [item.id, item])),
+    [optimisticItems],
+  );
+  const displayItems = orderedIds
+    .map((id) => itemsById.get(id))
+    .filter((item): item is PantryItemRow => item !== undefined);
 
   async function handleIncrement(itemId: string) {
     addOptimisticUpdate({ itemId, type: "increment" });
@@ -99,11 +170,47 @@ export function SignedInHome({ items }: Props) {
             <table className="w-full min-w-[320px] text-left text-sm">
               <thead className="border-b border-zinc-200 dark:border-zinc-800">
                 <tr>
-                  <th className="px-2 py-2 font-medium text-zinc-600 sm:px-4 dark:text-zinc-400">
-                    Name
+                  <th
+                    className="px-2 py-2 sm:px-4"
+                    aria-sort={ariaSortFor("name")}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleHeaderClick("name")}
+                      className={SORT_HEADER_CLASS}
+                    >
+                      Name
+                      {sortState?.column === "name" &&
+                        (sortState.direction === "ascending" ? (
+                          <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+                        ) : (
+                          <ArrowDown
+                            className="h-3.5 w-3.5"
+                            aria-hidden="true"
+                          />
+                        ))}
+                    </button>
                   </th>
-                  <th className="px-2 py-2 font-medium text-zinc-600 sm:px-4 dark:text-zinc-400">
-                    Amount
+                  <th
+                    className="px-2 py-2 sm:px-4"
+                    aria-sort={ariaSortFor("amount")}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleHeaderClick("amount")}
+                      className={SORT_HEADER_CLASS}
+                    >
+                      Amount
+                      {sortState?.column === "amount" &&
+                        (sortState.direction === "ascending" ? (
+                          <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+                        ) : (
+                          <ArrowDown
+                            className="h-3.5 w-3.5"
+                            aria-hidden="true"
+                          />
+                        ))}
+                    </button>
                   </th>
                   <th className="px-2 py-2 font-medium text-zinc-600 sm:px-4 dark:text-zinc-400">
                     Actions
@@ -111,7 +218,7 @@ export function SignedInHome({ items }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {optimisticItems.map((item) => {
+                {displayItems.map((item) => {
                   const outOfStock = Number(item.quantity) === 0;
                   return (
                     <tr

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const decrementItemMock = vi.fn();
@@ -39,11 +39,19 @@ function itemRow(
   };
 }
 
+function nameCells() {
+  return screen
+    .getAllByRole("row")
+    .slice(1) // drop the header row
+    .map((row) => row.querySelector("td")?.textContent);
+}
+
 describe("SignedInHome", () => {
   beforeEach(() => {
     decrementItemMock.mockReset();
     incrementItemMock.mockReset();
     deleteItemMock.mockReset();
+    window.localStorage.clear();
   });
 
   it("shows the empty state when there are no items", () => {
@@ -218,7 +226,9 @@ describe("SignedInHome", () => {
       screen.getByRole("button", { name: "Increase Rice quantity" }),
     );
 
-    expect(await screen.findByRole("cell", { name: "3 kg" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("cell", { name: "3 kg" }),
+    ).toBeInTheDocument();
     expect(incrementItemMock).toHaveBeenCalledExactlyOnceWith(
       "11111111-1111-1111-1111-111111111111",
     );
@@ -239,7 +249,9 @@ describe("SignedInHome", () => {
       screen.getByRole("button", { name: "Decrease Rice quantity" }),
     );
 
-    expect(await screen.findByRole("cell", { name: "1 kg" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("cell", { name: "1 kg" }),
+    ).toBeInTheDocument();
     expect(decrementItemMock).toHaveBeenCalledExactlyOnceWith(
       "11111111-1111-1111-1111-111111111111",
     );
@@ -263,5 +275,142 @@ describe("SignedInHome", () => {
     expect(await screen.findByText("Out of stock")).toHaveClass("sr-only");
 
     resolveDecrement();
+  });
+
+  function sortItems() {
+    return [
+      itemRow({
+        id: "11111111-1111-1111-1111-111111111111",
+        name: "Banana",
+        quantity: "5",
+        unit: "count",
+      }),
+      itemRow({
+        id: "22222222-2222-2222-2222-222222222222",
+        name: "apple",
+        quantity: "10",
+        unit: "count",
+      }),
+      itemRow({
+        id: "33333333-3333-3333-3333-333333333333",
+        name: "Cherry",
+        quantity: "1",
+        unit: "count",
+      }),
+    ];
+  }
+
+  function nameHeader() {
+    return screen.getByRole("columnheader", { name: "Name" });
+  }
+
+  function amountHeader() {
+    return screen.getByRole("columnheader", { name: "Amount" });
+  }
+
+  describe("column-header sorting (PER-249)", () => {
+    it("renders rows in the incoming (default createdAt) order with aria-sort none on both headers", () => {
+      render(<SignedInHome items={sortItems()} />);
+
+      expect(nameCells()).toEqual(["Banana", "apple", "Cherry"]);
+      expect(nameHeader()).toHaveAttribute("aria-sort", "none");
+      expect(amountHeader()).toHaveAttribute("aria-sort", "none");
+    });
+
+    it("sorts by name ascending on first click, case-insensitively", () => {
+      render(<SignedInHome items={sortItems()} />);
+
+      fireEvent.click(within(nameHeader()).getByRole("button"));
+
+      expect(nameCells()).toEqual(["apple", "Banana", "Cherry"]);
+      expect(nameHeader()).toHaveAttribute("aria-sort", "ascending");
+    });
+
+    it("cycles name ascending -> descending -> default on repeated clicks", () => {
+      render(<SignedInHome items={sortItems()} />);
+      const button = within(nameHeader()).getByRole("button");
+
+      fireEvent.click(button);
+      fireEvent.click(button);
+      expect(nameCells()).toEqual(["Cherry", "Banana", "apple"]);
+      expect(nameHeader()).toHaveAttribute("aria-sort", "descending");
+
+      fireEvent.click(button);
+      expect(nameCells()).toEqual(["Banana", "apple", "Cherry"]);
+      expect(nameHeader()).toHaveAttribute("aria-sort", "none");
+    });
+
+    it("sorts by amount ascending on the raw numeric quantity", () => {
+      render(<SignedInHome items={sortItems()} />);
+
+      fireEvent.click(within(amountHeader()).getByRole("button"));
+
+      expect(nameCells()).toEqual(["Cherry", "Banana", "apple"]);
+      expect(amountHeader()).toHaveAttribute("aria-sort", "ascending");
+    });
+
+    it("switching to a different column always restarts at ascending", () => {
+      render(<SignedInHome items={sortItems()} />);
+
+      const nameButton = within(nameHeader()).getByRole("button");
+      fireEvent.click(nameButton);
+      fireEvent.click(nameButton); // now descending on name
+
+      fireEvent.click(within(amountHeader()).getByRole("button"));
+
+      expect(amountHeader()).toHaveAttribute("aria-sort", "ascending");
+      expect(nameHeader()).toHaveAttribute("aria-sort", "none");
+      expect(nameCells()).toEqual(["Cherry", "Banana", "apple"]);
+    });
+
+    it("does not make the Actions header sortable", () => {
+      render(<SignedInHome items={sortItems()} />);
+
+      const actionsHeader = screen.getByRole("columnheader", {
+        name: "Actions",
+      });
+      expect(
+        within(actionsHeader).queryByRole("button"),
+      ).not.toBeInTheDocument();
+      expect(actionsHeader).not.toHaveAttribute("aria-sort");
+    });
+
+    it("persists sort state to localStorage and restores it on the next render", () => {
+      const { unmount } = render(<SignedInHome items={sortItems()} />);
+      fireEvent.click(within(amountHeader()).getByRole("button"));
+      unmount();
+
+      render(<SignedInHome items={sortItems()} />);
+
+      expect(nameCells()).toEqual(["Cherry", "Banana", "apple"]);
+      expect(amountHeader()).toHaveAttribute("aria-sort", "ascending");
+    });
+
+    it("does not live-reorder rows while an optimistic quantity update is in flight", async () => {
+      let resolveIncrement: () => void = () => {};
+      incrementItemMock.mockReturnValue(
+        new Promise<void>((resolve) => {
+          resolveIncrement = resolve;
+        }),
+      );
+
+      render(<SignedInHome items={sortItems()} />);
+      fireEvent.click(within(amountHeader()).getByRole("button"));
+      expect(nameCells()).toEqual(["Cherry", "Banana", "apple"]);
+
+      // Incrementing apple (quantity 10 -> 11) would, if re-sorted live,
+      // still land last by amount — increment Cherry (1 -> 2) instead,
+      // which would jump ahead of Banana (5) under a live re-sort.
+      fireEvent.click(
+        screen.getByRole("button", { name: "Increase Cherry quantity" }),
+      );
+
+      expect(
+        await screen.findByRole("cell", { name: "2" }),
+      ).toBeInTheDocument();
+      expect(nameCells()).toEqual(["Cherry", "Banana", "apple"]);
+
+      resolveIncrement();
+    });
   });
 });
