@@ -187,7 +187,7 @@ describe("SignedInHome", () => {
     );
   });
 
-  it("renders increment/decrement/edit/delete controls per item", () => {
+  it("renders increment/decrement controls and an overflow menu trigger per item", () => {
     render(<SignedInHome items={[itemRow()]} />);
 
     expect(
@@ -196,13 +196,15 @@ describe("SignedInHome", () => {
     expect(
       screen.getByRole("button", { name: "Decrease Rice quantity" }),
     ).toBeEnabled();
-    expect(screen.getByRole("link", { name: "Edit Rice" })).toHaveAttribute(
-      "href",
-      "/items/11111111-1111-1111-1111-111111111111/edit",
-    );
     expect(
-      screen.getByRole("button", { name: "Delete Rice" }),
+      screen.getByRole("button", { name: "Actions for Rice" }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Edit Rice" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Edit" }),
+    ).not.toBeInTheDocument();
   });
 
   function getActionsContainer() {
@@ -212,13 +214,15 @@ describe("SignedInHome", () => {
     return decrementForm?.parentElement as HTMLElement;
   }
 
-  it("lays the actions out as a 2x2 grid below sm, a single row at/above it", () => {
+  it("lays the actions out as a single row at every viewport (ADR 0004, PER-266)", () => {
     render(<SignedInHome items={[itemRow()]} />);
 
-    expect(getActionsContainer()).toHaveClass("grid", "grid-cols-2", "sm:flex");
+    const container = getActionsContainer();
+    expect(container).toHaveClass("flex", "items-center", "gap-1.5");
+    expect(container).not.toHaveClass("grid", "grid-cols-2");
   });
 
-  it("orders the actions decrement, increment, edit, delete so the grid wraps them 2x2 in that order", () => {
+  it("orders the actions decrement, increment, overflow trigger", () => {
     render(<SignedInHome items={[itemRow()]} />);
 
     const controls = Array.from(
@@ -228,18 +232,49 @@ describe("SignedInHome", () => {
     expect(controls.map((el) => el.getAttribute("aria-label"))).toEqual([
       "Decrease Rice quantity",
       "Increase Rice quantity",
-      "Edit Rice",
-      "Delete Rice",
+      "Actions for Rice",
     ]);
   });
 
-  it("sizes the table's minimum width for the 2x2 actions grid so it fits a 375px viewport", () => {
+  it("opens the overflow menu with plain-text Edit and Delete menu items", () => {
     render(<SignedInHome items={[itemRow()]} />);
 
-    const table = screen.getByRole("table");
+    expect(
+      screen.queryByRole("menuitem", { name: "Edit" }),
+    ).not.toBeInTheDocument();
 
-    expect(table).not.toHaveClass("min-w-[480px]");
-    expect(table).toHaveClass("min-w-[320px]");
+    fireEvent.click(screen.getByRole("button", { name: "Actions for Rice" }));
+
+    expect(screen.getByRole("menuitem", { name: "Edit" })).toHaveAttribute(
+      "href",
+      "/items/11111111-1111-1111-1111-111111111111/edit",
+    );
+    expect(
+      screen.getByRole("menuitem", { name: "Delete" }),
+    ).toBeInTheDocument();
+  });
+
+  it("closes the overflow menu once Edit is selected", () => {
+    render(<SignedInHome items={[itemRow()]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Actions for Rice" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+
+    expect(
+      screen.queryByRole("menuitem", { name: "Delete" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("deletes the item immediately on selecting Delete, with no confirmation step", () => {
+    render(<SignedInHome items={[itemRow()]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Actions for Rice" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+
+    expect(deleteItemMock).toHaveBeenCalledExactlyOnceWith(
+      "11111111-1111-1111-1111-111111111111",
+      expect.any(FormData),
+    );
   });
 
   it("disables the decrement control once an item is out of stock", () => {
