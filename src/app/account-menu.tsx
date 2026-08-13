@@ -53,13 +53,23 @@ export function AccountMenu() {
                 Account
               </Link>
             </DropdownMenu.Item>
-            <form action={signOut}>
-              <DropdownMenu.Item asChild>
-                <button type="submit" className={DROPDOWN_ITEM_CLASS}>
-                  Sign out
-                </button>
-              </DropdownMenu.Item>
-            </form>
+            {/* Not a submitting <form> button: Radix unmounts the menu (and
+                this button) synchronously within the same click, and a
+                detached submit button's native form-submission gets
+                silently cancelled by the browser before it fires — signOut
+                takes no FormData, so calling it directly sidesteps that
+                race. */}
+            <DropdownMenu.Item asChild>
+              <button
+                type="button"
+                onClick={() => {
+                  void signOut();
+                }}
+                className={DROPDOWN_ITEM_CLASS}
+              >
+                Sign out
+              </button>
+            </DropdownMenu.Item>
             <DropdownMenu.Item asChild>
               <button
                 type="button"
