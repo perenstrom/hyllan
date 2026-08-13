@@ -103,6 +103,8 @@ jobs:
     needs: changes
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    outputs:
+      files: ${{ steps.list-files.outputs.files }}
     env:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: hyllan
@@ -128,15 +130,51 @@ jobs:
         run: npx playwright install --with-deps chromium
       - if: needs.changes.outputs.code == 'true'
         run: npm run screenshots
+      # One row per image in the run's Artifacts list, so a reviewer opens a
+      # PNG directly instead of downloading a zip (below). The catalog is
+      # read from whatever files capture actually produced, not from
+      # scenarios.ts, so adding a scenario there never needs a matching
+      # change here.
+      - if: needs.changes.outputs.code == 'true'
+        id: list-files
+        run: echo "files=$(ls screenshots/output | jq -R -s -c 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
+      # Also uploaded as one zip (below the per-image artifacts in the same
+      # list) for anyone who'd rather grab every image in one download.
       - if: needs.changes.outputs.code == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: screenshots
+          name: screenshots-all
           path: screenshots/output
           retention-days: 2
           if-no-files-found: error
       - if: always() && needs.changes.outputs.code == 'true'
         run: docker compose down
+
+  # Re-uploads each image from the screenshots job's zip bundle as its own
+  # unzipped artifact (actions/upload-artifact@v7's `archive: false`, GitHub
+  # Changelog 2026-02-26) — a reviewer can open a PNG straight from the
+  # run's Artifacts list instead of downloading and unzipping a bundle.
+  # archive: false only accepts one file per step, so this fans out over
+  # the dynamic file list via a matrix rather than a fixed, hand-maintained
+  # step per scenario.
+  publish-screenshots:
+    needs: [changes, screenshots]
+    if: success() && github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        file: ${{ fromJson(needs.screenshots.outputs.files) }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: screenshots-all
+          path: screenshots/output
+      - uses: actions/upload-artifact@v7
+        with:
+          path: screenshots/output/${{ matrix.file }}
+          archive: false
+          retention-days: 2
 
   deploy-staging:
     needs: [changes, build, e2e]
