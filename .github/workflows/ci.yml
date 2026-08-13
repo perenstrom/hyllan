@@ -92,6 +92,52 @@ jobs:
       - if: always() && needs.changes.outputs.code == 'true'
         run: docker compose down
 
+  # Full-catalog screenshot sweep (PER-262), PR review only — not a required
+  # check and not run on pushes to main, so it's skipped there via the job
+  # `if` rather than the changes-gated-steps pattern build/e2e use (those
+  # two must report on every commit for branch protection; this one has no
+  # such requirement). `npm run screenshots` is self-contained: it brings up
+  # the Docker stack, migrates, seeds each scenario's own data, and captures
+  # every scenario at both viewports.
+  screenshots:
+    needs: changes
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: hyllan
+      POSTGRES_DB: hyllan
+      POSTGRES_PORT: 5432
+      DATABASE_URL: postgres://postgres:hyllan@localhost:5432/hyllan
+      GOTRUE_PORT: 9999
+      GOTRUE_SITE_URL: http://localhost:3000
+      GOTRUE_API_EXTERNAL_URL: http://localhost:9999
+      GOTRUE_DB_PASSWORD: supabase_auth_admin
+      GOTRUE_JWT_SECRET: ci-only-secret-do-not-use-in-production
+      NEXT_PUBLIC_SUPABASE_URL: http://localhost:3000
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-unused-by-standalone-gotrue
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - if: needs.changes.outputs.code == 'true'
+        run: npm ci
+      - if: needs.changes.outputs.code == 'true'
+        run: npx playwright install --with-deps chromium
+      - if: needs.changes.outputs.code == 'true'
+        run: npm run screenshots
+      - if: needs.changes.outputs.code == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots/output
+          retention-days: 2
+          if-no-files-found: error
+      - if: always() && needs.changes.outputs.code == 'true'
+        run: docker compose down
+
   deploy-staging:
     needs: [changes, build, e2e]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.changes.outputs.code == 'true'
