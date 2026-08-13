@@ -37,6 +37,16 @@ export function AccountMenu() {
             align="end"
             sideOffset={8}
             className={DROPDOWN_PANEL_CLASS}
+            // Radix returns focus to the trigger once the menu finishes
+            // closing; skip that when "Delete account" is what closed it; so
+            // it doesn't fight the dialog's own showModal()-driven focus
+            // trap (Radix's documented pattern for a menu item that opens a
+            // dialog).
+            onCloseAutoFocus={(event) => {
+              if (deleteDialogOpen) {
+                event.preventDefault();
+              }
+            }}
           >
             <DropdownMenu.Item asChild>
               <Link href="/account" className={DROPDOWN_ITEM_CLASS}>

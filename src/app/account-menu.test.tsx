@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -30,6 +30,26 @@ describe("AccountMenu", () => {
       "href",
       "/account",
     );
+  });
+
+  it("closes on outside click", async () => {
+    const user = userEvent.setup();
+    render(<AccountMenu />);
+
+    await user.click(screen.getByRole("button", { name: "Account menu" }));
+    expect(
+      screen.getByRole("menuitem", { name: "Sign out" }),
+    ).toBeInTheDocument();
+
+    // Radix's modal dropdown disables pointer events on the rest of the
+    // page while open, so a real click can't land on another element the
+    // way it would once the menu is closed — fire the raw pointerdown its
+    // outside-dismiss listener reacts to instead.
+    fireEvent.pointerDown(document.body);
+
+    expect(
+      screen.queryByRole("menuitem", { name: "Sign out" }),
+    ).not.toBeInTheDocument();
   });
 
   it("closes on Escape", async () => {

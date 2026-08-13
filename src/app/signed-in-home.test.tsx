@@ -281,6 +281,24 @@ describe("SignedInHome", () => {
     );
   });
 
+  it("closes the overflow menu on outside click", async () => {
+    const user = userEvent.setup();
+    render(<SignedInHome items={[itemRow()]} />);
+
+    await user.click(screen.getByRole("button", { name: "Actions for Rice" }));
+    expect(screen.getByRole("menuitem", { name: "Edit" })).toBeInTheDocument();
+
+    // Radix's modal dropdown disables pointer events on the rest of the
+    // page while open, so a real click can't land on another element the
+    // way it would once the menu is closed — fire the raw pointerdown its
+    // outside-dismiss listener reacts to instead.
+    fireEvent.pointerDown(document.body);
+
+    expect(
+      screen.queryByRole("menuitem", { name: "Edit" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("supports arrow-key navigation between the overflow menu's items", async () => {
     const user = userEvent.setup();
     render(<SignedInHome items={[itemRow()]} />);
