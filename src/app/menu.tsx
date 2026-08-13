@@ -2,12 +2,6 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-export const MENU_PANEL_CLASS =
-  "absolute right-0 z-10 mt-2 w-44 overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900";
-
-export const MENU_ITEM_CLASS =
-  "block w-full px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800";
-
 type MenuTriggerArgs = { open: boolean; toggle: () => void };
 type MenuPanelArgs = { close: () => void };
 
@@ -25,10 +19,14 @@ type Props = {
   panelRole?: "menu";
 };
 
-// Shared open-state/outside-click-close/positioning behind the three
-// dropdown-style triggers in the app (account menu, status filter, row
-// overflow menu) — extracted after the same pattern was hand-rolled
-// independently for each one (ADR 0004, PER-266).
+// Shared open-state/outside-click-close/positioning, extracted after the
+// same pattern was hand-rolled independently across the app's three
+// dropdown-style triggers (ADR 0004, PER-266). The account menu and the row
+// overflow menu have since moved onto Radix's DropdownMenu primitive
+// instead (ADR 0004, PER-270), for portal-based positioning and standard
+// menu keyboard behavior; this primitive remains for the Status filter
+// dropdown, whose checkbox panel isn't an ARIA `menu` widget and wasn't in
+// scope for that migration.
 export function Menu({ trigger, children, panelClassName, panelRole }: Props) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);

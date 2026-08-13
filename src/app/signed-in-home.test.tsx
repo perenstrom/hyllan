@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const decrementItemMock = vi.fn();
@@ -236,14 +237,15 @@ describe("SignedInHome", () => {
     ]);
   });
 
-  it("opens the overflow menu with plain-text Edit and Delete menu items", () => {
+  it("opens the overflow menu with plain-text Edit and Delete menu items", async () => {
+    const user = userEvent.setup();
     render(<SignedInHome items={[itemRow()]} />);
 
     expect(
       screen.queryByRole("menuitem", { name: "Edit" }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Actions for Rice" }));
+    await user.click(screen.getByRole("button", { name: "Actions for Rice" }));
 
     expect(screen.getByRole("menuitem", { name: "Edit" })).toHaveAttribute(
       "href",
@@ -254,27 +256,57 @@ describe("SignedInHome", () => {
     ).toBeInTheDocument();
   });
 
-  it("closes the overflow menu once Edit is selected", () => {
+  it("closes the overflow menu once Edit is selected", async () => {
+    const user = userEvent.setup();
     render(<SignedInHome items={[itemRow()]} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Actions for Rice" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+    await user.click(screen.getByRole("button", { name: "Actions for Rice" }));
+    await user.click(screen.getByRole("menuitem", { name: "Edit" }));
 
     expect(
       screen.queryByRole("menuitem", { name: "Delete" }),
     ).not.toBeInTheDocument();
   });
 
-  it("deletes the item immediately on selecting Delete, with no confirmation step", () => {
+  it("deletes the item immediately on selecting Delete, with no confirmation step", async () => {
+    const user = userEvent.setup();
     render(<SignedInHome items={[itemRow()]} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Actions for Rice" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Actions for Rice" }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 
     expect(deleteItemMock).toHaveBeenCalledExactlyOnceWith(
       "11111111-1111-1111-1111-111111111111",
       expect.any(FormData),
     );
+  });
+
+  it("supports arrow-key navigation between the overflow menu's items", async () => {
+    const user = userEvent.setup();
+    render(<SignedInHome items={[itemRow()]} />);
+
+    await user.click(screen.getByRole("button", { name: "Actions for Rice" }));
+    await user.keyboard("{ArrowDown}");
+
+    expect(screen.getByRole("menuitem", { name: "Edit" })).toHaveFocus();
+
+    await user.keyboard("{ArrowDown}");
+
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toHaveFocus();
+  });
+
+  it("closes the overflow menu on Escape", async () => {
+    const user = userEvent.setup();
+    render(<SignedInHome items={[itemRow()]} />);
+
+    await user.click(screen.getByRole("button", { name: "Actions for Rice" }));
+    expect(screen.getByRole("menuitem", { name: "Edit" })).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+
+    expect(
+      screen.queryByRole("menuitem", { name: "Edit" }),
+    ).not.toBeInTheDocument();
   });
 
   it("disables the decrement control once an item is out of stock", () => {
