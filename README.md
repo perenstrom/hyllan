@@ -159,6 +159,15 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 - **Breaking changes** — mark with `!` after the type/scope
   (`feat(api)!: ...`) and explain in a `BREAKING CHANGE:` footer.
 
+## Pull requests
+
+Write PR descriptions in plain paragraphs and standard Markdown lists — don't
+insert manual line breaks inside a paragraph (e.g. one sentence or clause per
+line). GitHub's mobile app wraps each hard-broken line as its own block, so a
+paragraph written with mid-sentence breaks reads as a staircase of
+fragments on a phone. Let paragraphs wrap naturally; only start a new line
+for an actual new paragraph or list item.
+
 ## Scripts
 
 - `npm run dev` — start the dev server
