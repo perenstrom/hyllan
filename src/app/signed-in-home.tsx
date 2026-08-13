@@ -4,9 +4,11 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useOptimistic, useState } from "react";
 
+import { ACTION_BUTTON_CLASS, ACTION_ICON_CLASS } from "./action-button";
 import { AppHeader } from "./app-header";
-import { MinusIcon, PencilIcon, PlusIcon, TrashIcon } from "./icons";
-import { decrementItem, deleteItem, incrementItem } from "./items/actions";
+import { MinusIcon, PlusIcon } from "./icons";
+import { decrementItem, incrementItem } from "./items/actions";
+import { RowActionsMenu } from "./row-actions-menu";
 import { StatusFilterDropdown } from "./status-filter-dropdown";
 import type { pantryItems } from "@/db/schema";
 import {
@@ -49,11 +51,6 @@ function applyQuantityUpdate(
       : item,
   );
 }
-
-// 32px touch target per ADR 0004.
-const ACTION_BUTTON_CLASS =
-  "flex h-8 w-8 items-center justify-center rounded border border-zinc-300 text-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300";
-const ACTION_ICON_CLASS = "h-4 w-4";
 
 // Red tint, chosen over the page background alone (ADR 0004, PER-236) so
 // out-of-stock rows are distinguishable without a mounting/unmounting label
@@ -275,12 +272,12 @@ export function SignedInHome({ items }: Props) {
           </p>
         ) : (
           <div className="overflow-x-auto sm:rounded-lg sm:border sm:border-zinc-200 dark:sm:border-zinc-800">
-            {/* 320px comfortably fits a 375px viewport now that the table
-                sits flush against the screen edge (no horizontal padding
-                from `main` below sm), so the 2x2 actions grid (PER-233)
-                doesn't push ordinary phone widths into scroll — only
-                genuine edge cases like very long item names do. */}
-            <table className="w-full min-w-[320px] text-left text-sm">
+            {/* The Actions column is a fixed 3-element row at every
+                viewport (ADR 0004, PER-266), so it no longer needs a
+                minimum-width hack to avoid wrapping at narrow widths;
+                horizontal scroll remains as a fallback for genuine edge
+                cases like very long item names. */}
+            <table className="w-full text-left text-sm">
               <thead className="border-b border-zinc-200 dark:border-zinc-800">
                 <tr>
                   <SortableHeader
@@ -330,10 +327,9 @@ export function SignedInHome({ items }: Props) {
                         {formatQuantity(item.quantity, item.unit)}
                       </td>
                       <td className="px-2 py-2 sm:px-4">
-                        {/* 2x2 grid below sm (ADR 0004, PER-233) so the four
-                            buttons' combined width stops being the table's
-                            widest column and forcing horizontal scroll. */}
-                        <div className="grid grid-cols-2 items-center gap-1.5 sm:flex">
+                        {/* Fixed 3-element row at every viewport (ADR 0004,
+                            PER-266): decrement, increment, overflow menu. */}
+                        <div className="flex items-center gap-1.5">
                           <form action={handleDecrement.bind(null, item.id)}>
                             <button
                               type="submit"
@@ -353,22 +349,10 @@ export function SignedInHome({ items }: Props) {
                               <PlusIcon className={ACTION_ICON_CLASS} />
                             </button>
                           </form>
-                          <Link
-                            href={`/items/${item.id}/edit`}
-                            aria-label={`Edit ${item.name}`}
-                            className={ACTION_BUTTON_CLASS}
-                          >
-                            <PencilIcon className={ACTION_ICON_CLASS} />
-                          </Link>
-                          <form action={deleteItem.bind(null, item.id)}>
-                            <button
-                              type="submit"
-                              aria-label={`Delete ${item.name}`}
-                              className={ACTION_BUTTON_CLASS}
-                            >
-                              <TrashIcon className={ACTION_ICON_CLASS} />
-                            </button>
-                          </form>
+                          <RowActionsMenu
+                            itemId={item.id}
+                            itemName={item.name}
+                          />
                         </div>
                       </td>
                     </tr>

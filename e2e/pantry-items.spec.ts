@@ -148,8 +148,10 @@ test("signed-in user can adjust, edit, and delete a pantry item", async ({
     page.getByRole("button", { name: "Decrease Rice quantity" }),
   ).toBeDisabled();
 
-  // Editing opens the same focused form, prefilled, and saving updates the item.
-  await page.getByRole("link", { name: "Edit Rice" }).click();
+  // Editing opens the same focused form, prefilled, and saving updates the
+  // item — reached via the row's overflow menu (ADR 0004, PER-266).
+  await page.getByRole("button", { name: "Actions for Rice" }).click();
+  await page.getByRole("menuitem", { name: "Edit" }).click();
   await expect(page.getByLabel("Name")).toHaveValue("Rice");
   await expect(page.getByLabel("Quantity", { exact: true })).toHaveValue("0");
   await expect(page.getByLabel("Unit")).toHaveValue("kg");
@@ -162,7 +164,9 @@ test("signed-in user can adjust, edit, and delete a pantry item", async ({
   await expect(page.getByText("Basmati rice")).toBeVisible();
   await expect(page.getByRole("cell", { name: "4 g" })).toBeVisible();
 
-  // Deleting removes the item entirely.
-  await page.getByRole("button", { name: "Delete Basmati rice" }).click();
+  // Deleting removes the item entirely — no confirmation step, unchanged
+  // behavior now that it's reached via the overflow menu (ADR 0004, PER-266).
+  await page.getByRole("button", { name: "Actions for Basmati rice" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
   await expect(page.getByText("Your pantry is empty.")).toBeVisible();
 });
