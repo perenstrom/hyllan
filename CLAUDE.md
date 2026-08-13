@@ -18,5 +18,4 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/) (`type(scope
 
 ### PR descriptions
 
-No manual line breaks mid-paragraph — they render as a staggered mess on
-mobile. See the "Pull requests" section in `README.md`.
+No manual line breaks mid-paragraph — they render as a staggered mess on mobile. See the "Pull requests" section in `README.md`.
