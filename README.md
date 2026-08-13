@@ -38,6 +38,20 @@ The app talks to GoTrue via `@supabase/ssr` (`src/lib/supabase/`), with `NEXT_PU
 - `npm run db:migrate` — apply pending migrations to `DATABASE_URL`
 - `npm run db:seed` — dev-only: creates a `dev@example.com` / `development` account (via GoTrue's `/signup`, same as a real signup) with a household and a handful of pantry items, so there's something to look at right after `npm run dev`. Safe to re-run — it skips item seeding if the account already has items.
 
+## Screenshots
+
+`npm run screenshots` captures every route and every modal/dialog state (`screenshots/scenarios.ts`) at a desktop (1280×800) and a mobile (375×667) viewport, so a PR can be reviewed visually without anyone running the app or signing in by hand. It's self-contained: it brings up the Docker stack, migrates, seeds each scenario's own account/household (`screenshots/seed.ts`, extending the `db:seed` helpers in `src/db/seed-support.ts`), and writes PNGs to `screenshots/output/` (gitignored) — no manual setup step first.
+
+Authentication skips the signup/login forms entirely: `src/lib/testing/mock-session.ts` mints a session JWT directly, signed with `GOTRUE_JWT_SECRET` (the same secret GoTrue itself signs with) in the same claim shape a real login produces, and injects it as the session cookie. This is a testing-only utility, never imported from application code.
+
+To capture a single scenario (or a subset) instead of the full catalog, pass Playwright's own `--grep`:
+
+```bash
+npm run screenshots -- --grep pantry-low-stock
+```
+
+In CI, a `pull_request`-only job (`.github/workflows/ci.yml`) runs the full catalog and uploads `screenshots/output/` as a workflow artifact retained for 2 days — see the run's "Artifacts" section, not the PR description (GitHub doesn't let a workflow render artifact contents inline in a PR).
+
 ## Production deployment
 
 Single-VPS, single Docker Compose stack — no Kubernetes, no split stacks, no WAL archiving/point-in-time recovery. See `docs/research/deployment-architecture.md` for the reasoning behind this shape.
@@ -119,4 +133,5 @@ Write PR descriptions in plain paragraphs and standard Markdown lists — don't 
 - `npm test` — run unit/integration tests once (Vitest, including PGlite-backed integration tests)
 - `npm run test:watch` — Vitest in watch mode
 - `npm run test:e2e` — Playwright E2E tests; builds and runs a production server, so the Docker stack must be up and migrations applied first
+- `npm run screenshots` — capture UI screenshots for every route/modal state at desktop and mobile viewports (see "Screenshots" above); self-contained, brings up the Docker stack itself
 - `npm run format` / `npm run format:check` — Prettier
