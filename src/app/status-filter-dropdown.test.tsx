@@ -1,11 +1,13 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_STATUS_FILTER } from "@/lib/pantry-item";
 import { StatusFilterDropdown } from "./status-filter-dropdown";
 
 describe("StatusFilterDropdown", () => {
-  it("hides the checkboxes until the trigger is clicked", () => {
+  it("hides the checkboxes until the trigger is clicked", async () => {
+    const user = userEvent.setup();
     render(
       <StatusFilterDropdown
         filter={DEFAULT_STATUS_FILTER}
@@ -17,7 +19,7 @@ describe("StatusFilterDropdown", () => {
       screen.queryByRole("checkbox", { name: "In stock" }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Status" }));
+    await user.click(screen.getByRole("button", { name: "Status" }));
 
     expect(screen.getByRole("checkbox", { name: "In stock" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Low stock" })).toBeChecked();
@@ -50,7 +52,8 @@ describe("StatusFilterDropdown", () => {
     ).toBeInTheDocument();
   });
 
-  it("reports the toggled filter through onChange without mutating the passed-in filter", () => {
+  it("reports the toggled filter through onChange without mutating the passed-in filter", async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(
       <StatusFilterDropdown
@@ -58,9 +61,9 @@ describe("StatusFilterDropdown", () => {
         onChange={onChange}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Status" }));
+    await user.click(screen.getByRole("button", { name: "Status" }));
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Out of stock" }));
+    await user.click(screen.getByRole("checkbox", { name: "Out of stock" }));
 
     expect(onChange).toHaveBeenCalledExactlyOnceWith({
       "in-stock": true,
@@ -70,7 +73,8 @@ describe("StatusFilterDropdown", () => {
     expect(DEFAULT_STATUS_FILTER["out-of-stock"]).toBe(true);
   });
 
-  it("closes the dropdown when clicking outside it", () => {
+  it("closes the dropdown when clicking outside it", async () => {
+    const user = userEvent.setup();
     render(
       <div>
         <StatusFilterDropdown
@@ -80,12 +84,15 @@ describe("StatusFilterDropdown", () => {
         <button type="button">Outside</button>
       </div>,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Status" }));
+    await user.click(screen.getByRole("button", { name: "Status" }));
     expect(
       screen.getByRole("checkbox", { name: "In stock" }),
     ).toBeInTheDocument();
 
-    fireEvent.mouseDown(screen.getByRole("button", { name: "Outside" }));
+    // Popover (unlike DropdownMenu) defers its outside-pointerdown dismissal
+    // to the following click event, so both need firing here.
+    fireEvent.pointerDown(document.body);
+    fireEvent.click(document.body);
 
     expect(
       screen.queryByRole("checkbox", { name: "In stock" }),
