@@ -78,6 +78,10 @@ for (const scenario of SCENARIOS) {
             OUTPUT_DIR,
             `${scenario.name}-${viewport.name}.png`,
           ),
+          // Several scenarios (the pantry list, add/edit forms) overflow a
+          // mobile viewport — a viewport-only screenshot would silently
+          // crop the state the tool exists to show a reviewer.
+          fullPage: true,
         });
 
         await context.close();

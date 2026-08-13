@@ -49,13 +49,9 @@ export function mintAccessToken(
   };
 
   const signingInput = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(payload))}`;
-  const signature = crypto
-    .createHmac("sha256", jwtSecret)
-    .update(signingInput)
-    .digest("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+  const signature = base64url(
+    crypto.createHmac("sha256", jwtSecret).update(signingInput).digest(),
+  );
 
   return `${signingInput}.${signature}`;
 }
