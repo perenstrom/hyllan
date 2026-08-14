@@ -92,6 +92,165 @@ jobs:
       - if: always() && needs.changes.outputs.code == 'true'
         run: docker compose down
 
+  # Full-catalog screenshot sweep (PER-262), PR review only — not a required
+  # check and not run on pushes to main, so it's skipped there via the job
+  # `if` rather than the changes-gated-steps pattern build/e2e use (those
+  # two must report on every commit for branch protection; this one has no
+  # such requirement). `npm run screenshots` is self-contained: it brings up
+  # the Docker stack, migrates, seeds each scenario's own data, and captures
+  # every scenario at both viewports.
+  screenshots:
+    needs: changes
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      files: ${{ steps.list-files.outputs.files }}
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: hyllan
+      POSTGRES_DB: hyllan
+      POSTGRES_PORT: 5432
+      DATABASE_URL: postgres://postgres:hyllan@localhost:5432/hyllan
+      GOTRUE_PORT: 9999
+      GOTRUE_SITE_URL: http://localhost:3000
+      GOTRUE_API_EXTERNAL_URL: http://localhost:9999
+      GOTRUE_DB_PASSWORD: supabase_auth_admin
+      GOTRUE_JWT_SECRET: ci-only-secret-do-not-use-in-production
+      NEXT_PUBLIC_SUPABASE_URL: http://localhost:3000
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-unused-by-standalone-gotrue
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - if: needs.changes.outputs.code == 'true'
+        run: npm ci
+      - if: needs.changes.outputs.code == 'true'
+        run: npx playwright install --with-deps chromium
+      - if: needs.changes.outputs.code == 'true'
+        run: npm run screenshots
+      # One row per image in the run's Artifacts list, so a reviewer opens a
+      # PNG directly instead of downloading a zip (below). The catalog is
+      # read from whatever files capture actually produced, not from
+      # scenarios.ts, so adding a scenario there never needs a matching
+      # change here.
+      - if: needs.changes.outputs.code == 'true'
+        id: list-files
+        run: echo "files=$(ls screenshots/output | jq -R -s -c 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
+      # Also uploaded as one zip (below the per-image artifacts in the same
+      # list) for anyone who'd rather grab every image in one download.
+      - if: needs.changes.outputs.code == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-all
+          path: screenshots/output
+          retention-days: 2
+          if-no-files-found: error
+      - if: always() && needs.changes.outputs.code == 'true'
+        run: docker compose down
+
+  # Re-uploads each image from the screenshots job's zip bundle as its own
+  # unzipped artifact (actions/upload-artifact@v7's `archive: false`, GitHub
+  # Changelog 2026-02-26) — a reviewer can open a PNG straight from the
+  # run's Artifacts list instead of downloading and unzipping a bundle.
+  # archive: false only accepts one file per step, so this fans out over
+  # the dynamic file list via a matrix rather than a fixed, hand-maintained
+  # step per scenario.
+  publish-screenshots:
+    needs: [changes, screenshots]
+    if: success() && github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        file: ${{ fromJson(needs.screenshots.outputs.files) }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: screenshots-all
+          path: screenshots/output
+      - uses: actions/upload-artifact@v7
+        with:
+          path: screenshots/output/${{ matrix.file }}
+          archive: false
+          retention-days: 2
+
+  # Posts (or updates) a PR comment linking to each scenario's artifacts.
+  # An artifact's URL requires GitHub auth to open, so a plain markdown
+  # image tag pointing at one won't render for a reviewer — GitHub has no
+  # supported way to upload an image that does render inline in a comment
+  # from a workflow. A clickable link per scenario is the honest middle
+  # ground: one click to view instead of a download-and-unzip round trip,
+  # with no new or undocumented infrastructure.
+  comment-screenshots:
+    needs: [changes, screenshots, publish-screenshots]
+    if: success() && github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: { artifacts } } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+              per_page: 100,
+            });
+
+            const scenarios = new Map();
+            for (const artifact of artifacts) {
+              const match = artifact.name.match(/^(.+)-(desktop|mobile)\.png$/);
+              if (!match) continue;
+              const [, scenario, viewport] = match;
+              const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts/${artifact.id}`;
+              if (!scenarios.has(scenario)) scenarios.set(scenario, {});
+              scenarios.get(scenario)[viewport] = url;
+            }
+
+            const marker = "<!-- per-262-screenshots-comment -->";
+            const rows = [...scenarios.entries()]
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([scenario, { desktop, mobile }]) =>
+                `| ${scenario} | ${desktop ? `[View](${desktop})` : "—"} | ${mobile ? `[View](${mobile})` : "—"} |`,
+              );
+
+            const body = [
+              "## Screenshots",
+              "",
+              "| Scenario | Desktop | Mobile |",
+              "| --- | --- | --- |",
+              ...rows,
+              "",
+              marker,
+            ].join("\n");
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
   deploy-staging:
     needs: [changes, build, e2e]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.changes.outputs.code == 'true'
