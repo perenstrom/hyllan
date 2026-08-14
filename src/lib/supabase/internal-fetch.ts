@@ -43,3 +43,14 @@ export function internalGoTrueFetch(): typeof fetch | undefined {
     return fetch(rewriteToInternalUrl(url, internalUrl), init);
   };
 }
+
+// Spreadable into createServerClient's options (proxy.ts, server.ts): the
+// `global.fetch` override above when GOTRUE_API_INTERNAL_URL is configured,
+// or an empty object otherwise so the client falls back to its own default
+// fetch.
+export function internalGoTrueClientOptions(): {
+  global?: { fetch: typeof fetch };
+} {
+  const fetch = internalGoTrueFetch();
+  return fetch ? { global: { fetch } } : {};
+}

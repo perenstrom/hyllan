@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { internalGoTrueFetch } from "./lib/supabase/internal-fetch";
+import { internalGoTrueClientOptions } from "./lib/supabase/internal-fetch";
 
 // Server Components can only read cookies, not set them (see
 // src/lib/supabase/server.ts), so GoTrue's rotating refresh token would
@@ -10,13 +10,12 @@ import { internalGoTrueFetch } from "./lib/supabase/internal-fetch";
 // server-side rendering guide calls this pattern mandatory.
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
-  const fetch = internalGoTrueFetch();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      ...(fetch ? { global: { fetch } } : {}),
+      ...internalGoTrueClientOptions(),
       cookies: {
         getAll() {
           return request.cookies.getAll();

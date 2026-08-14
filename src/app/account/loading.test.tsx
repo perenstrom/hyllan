@@ -8,11 +8,15 @@ vi.mock("@/app/actions", () => ({
 
 const { default: Loading } = await import("./loading");
 
+// Thin smoke test — the actual loading UI is AuthenticatedLoading's
+// behavior, covered by src/app/authenticated-loading.test.tsx. This just
+// confirms the route wires up to it, with the account page's own
+// background classes.
 describe("account Loading", () => {
-  it("shows the app header and a loading status", () => {
-    render(<Loading />);
+  it("renders the shared authenticated loading state", () => {
+    const { container } = render(<Loading />);
 
-    expect(screen.getByRole("banner")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Loading…");
+    expect(container.firstChild).toHaveClass("bg-zinc-50");
   });
 });

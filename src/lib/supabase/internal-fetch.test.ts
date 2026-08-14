@@ -2,15 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const originalFetch = global.fetch;
 
-async function loadInternalGoTrueFetch(internalUrl: string | undefined) {
+async function loadInternalFetchModule(internalUrl: string | undefined) {
   vi.resetModules();
   if (internalUrl === undefined) {
     delete process.env.GOTRUE_API_INTERNAL_URL;
   } else {
     process.env.GOTRUE_API_INTERNAL_URL = internalUrl;
   }
-  const { internalGoTrueFetch } = await import("./internal-fetch");
-  return internalGoTrueFetch;
+  return import("./internal-fetch");
 }
 
 describe("internalGoTrueFetch", () => {
@@ -24,13 +23,13 @@ describe("internalGoTrueFetch", () => {
   });
 
   it("returns undefined when GOTRUE_API_INTERNAL_URL is unset", async () => {
-    const internalGoTrueFetch = await loadInternalGoTrueFetch(undefined);
+    const { internalGoTrueFetch } = await loadInternalFetchModule(undefined);
 
     expect(internalGoTrueFetch()).toBeUndefined();
   });
 
   it("reroutes an /auth/v1 request to the internal URL, stripping the prefix", async () => {
-    const internalGoTrueFetch = await loadInternalGoTrueFetch(
+    const { internalGoTrueFetch } = await loadInternalFetchModule(
       "http://auth:9999",
     );
 
@@ -46,7 +45,7 @@ describe("internalGoTrueFetch", () => {
   });
 
   it("preserves the query string when rerouting", async () => {
-    const internalGoTrueFetch = await loadInternalGoTrueFetch(
+    const { internalGoTrueFetch } = await loadInternalFetchModule(
       "http://auth:9999",
     );
 
@@ -62,7 +61,7 @@ describe("internalGoTrueFetch", () => {
   });
 
   it("leaves a request untouched if it doesn't target /auth/v1", async () => {
-    const internalGoTrueFetch = await loadInternalGoTrueFetch(
+    const { internalGoTrueFetch } = await loadInternalFetchModule(
       "http://auth:9999",
     );
 
@@ -76,7 +75,7 @@ describe("internalGoTrueFetch", () => {
   });
 
   it("accepts a URL object as input", async () => {
-    const internalGoTrueFetch = await loadInternalGoTrueFetch(
+    const { internalGoTrueFetch } = await loadInternalFetchModule(
       "http://auth:9999",
     );
 
@@ -86,6 +85,29 @@ describe("internalGoTrueFetch", () => {
     expect(global.fetch).toHaveBeenCalledExactlyOnceWith(
       "http://auth:9999/user",
       undefined,
+    );
+  });
+});
+
+describe("internalGoTrueClientOptions", () => {
+  afterEach(() => {
+    delete process.env.GOTRUE_API_INTERNAL_URL;
+  });
+
+  it("returns an empty object when GOTRUE_API_INTERNAL_URL is unset", async () => {
+    const { internalGoTrueClientOptions } =
+      await loadInternalFetchModule(undefined);
+
+    expect(internalGoTrueClientOptions()).toEqual({});
+  });
+
+  it("wraps the fetch override under global.fetch when configured", async () => {
+    const { internalGoTrueClientOptions } = await loadInternalFetchModule(
+      "http://auth:9999",
+    );
+
+    expect(internalGoTrueClientOptions().global?.fetch).toBeInstanceOf(
+      Function,
     );
   });
 });
