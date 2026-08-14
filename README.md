@@ -50,7 +50,7 @@ To capture a single scenario (or a subset) instead of the full catalog, pass Pla
 npm run screenshots -- --grep pantry-low-stock
 ```
 
-In CI, a `pull_request`-only job (`.github/workflows/ci.yml`) runs the full catalog and uploads each image individually — a reviewer can open a PNG straight from the run's "Artifacts" section rather than downloading and unzipping a bundle (GitHub doesn't render artifact contents inline in the PR description itself). A `screenshots-all` zip of every image is uploaded alongside them for anyone who'd rather grab everything in one download. Both are retained for 2 days.
+In CI, a `pull_request`-only job (`.github/workflows/ci.yml`) runs the full catalog and uploads each image individually — a reviewer can open a PNG straight from the run's "Artifacts" section rather than downloading and unzipping a bundle. A `screenshots-all` zip of every image is uploaded alongside them for anyone who'd rather grab everything in one download. Both are retained for 2 days. The workflow also posts (or updates) a PR comment linking to each scenario's artifacts — GitHub gives no supported way to upload an image that renders inline in a comment from a workflow (an artifact's URL requires GitHub auth to open, so a plain markdown image tag pointing at one won't render), so this is a table of links rather than embedded images.
 
 ## Production deployment
 
