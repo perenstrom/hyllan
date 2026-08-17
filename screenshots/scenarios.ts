@@ -44,6 +44,13 @@ const EDITABLE_ITEM: AddPantryItemInput = {
   minimumQuantity: "1",
 };
 
+const DELETABLE_ITEM: AddPantryItemInput = {
+  name: "Rice",
+  quantity: "2",
+  unit: "kg",
+  minimumQuantity: null,
+};
+
 export const SCENARIOS: Scenario[] = [
   { name: "signed-out-home", route: "/" },
   { name: "login", route: "/login" },
@@ -72,6 +79,19 @@ export const SCENARIOS: Scenario[] = [
       await page.getByRole("menuitem", { name: "Delete account" }).click();
       await page
         .getByRole("heading", { name: "Delete account?" })
+        .waitFor({ state: "visible" });
+    },
+  },
+
+  {
+    name: "delete-item-dialog",
+    seed: [DELETABLE_ITEM],
+    route: "/",
+    interactions: async (page) => {
+      await page.getByRole("button", { name: "Actions for Rice" }).click();
+      await page.getByRole("menuitem", { name: "Delete" }).click();
+      await page
+        .getByRole("heading", { name: "Delete Rice?" })
         .waitFor({ state: "visible" });
     },
   },
