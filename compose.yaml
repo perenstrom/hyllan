@@ -117,6 +117,11 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       GLITCHTIP_DSN: ${GLITCHTIP_DSN:-}
+      # GoTrue's address on this Docker network (see the `auth` service
+      # above) — read at runtime, not baked at build time like
+      # NEXT_PUBLIC_SUPABASE_URL, so a plain `environment:` entry is enough
+      # (see src/lib/supabase/internal-fetch.ts, PER-272).
+      GOTRUE_API_INTERNAL_URL: http://auth:9999
     healthcheck:
       test:
         [

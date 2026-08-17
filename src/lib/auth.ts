@@ -1,15 +1,20 @@
 import { redirect } from "next/navigation";
+import { cache } from "react";
 
 import { createClient } from "@/lib/supabase/server";
 
 // Bundled with the Supabase client (not just the claims) since some callers
 // need it afterward — e.g. deleteAccount signs out through the same client
-// once it's used the claims.
-export async function getSessionClaims() {
+// once it's used the claims. Wrapped in React's cache() (PER-272) so
+// multiple components/Server Actions within a single render pass share one
+// getClaims() call instead of each issuing their own — this doesn't help
+// with the request's earlier proxy.ts check (a separate invocation cache()
+// can't span), only with page/Server-Action-internal duplication.
+export const getSessionClaims = cache(async function getSessionClaims() {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   return { supabase, claims: data?.claims };
-}
+});
 
 // Redirects to /login when signed out — the shape every page/action wants
 // except the root page, which renders a signed-out state in place instead

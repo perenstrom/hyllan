@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { internalGoTrueClientOptions } from "./lib/supabase/internal-fetch";
+
 // Server Components can only read cookies, not set them (see
 // src/lib/supabase/server.ts), so GoTrue's rotating refresh token would
 // never get persisted back to the browser without this: proxy runs on every
@@ -13,6 +15,7 @@ export async function proxy(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      ...internalGoTrueClientOptions(),
       cookies: {
         getAll() {
           return request.cookies.getAll();
