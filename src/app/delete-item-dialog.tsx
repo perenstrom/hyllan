@@ -37,11 +37,11 @@ export function DeleteItemDialog({
     }
   }, [open]);
 
-  // The <form action> pattern passes itemId to deleteItem via .bind, but
-  // React also appends the submitted FormData as a final argument — forward
-  // only itemId, matching handleIncrement/handleDecrement's convention in
-  // signed-in-home.tsx for binding a server action that takes no FormData.
-  async function handleDelete(itemId: string) {
+  // A plain wrapper rather than binding deleteItem directly to the form
+  // action: React appends the submitted FormData as an extra argument, and
+  // deleteItem only takes itemId — itemId is already in scope via props, so
+  // no .bind is needed to get it there.
+  async function handleDelete() {
     await deleteItem(itemId);
   }
 
@@ -66,7 +66,7 @@ export function DeleteItemDialog({
         >
           Cancel
         </button>
-        <form action={handleDelete.bind(null, itemId)}>
+        <form action={handleDelete}>
           <button
             type="submit"
             className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white"
