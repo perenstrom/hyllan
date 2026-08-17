@@ -17,6 +17,14 @@ type Props = {
 // pattern rather than a lighter in-menu two-step, so destructive-action
 // confirmation stays a single pattern across the app instead of forking
 // per stakes level.
+//
+// Unlike DeleteAccountDialog (a page-wide singleton that stays mounted and
+// toggles native open/close), this one is instantiated once per row, and
+// its heading repeats the item's own name ("Delete Rice?"). Left mounted
+// while closed, that text sits in the DOM regardless of the native
+// dialog's display:none, which collided with plain-text-content assertions
+// elsewhere on the page (e2e, PER-269) — so this renders nothing at all
+// until open.
 export function DeleteItemDialog({
   itemId,
   itemName,
@@ -25,16 +33,12 @@ export function DeleteItemDialog({
 }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
+  // Depends on `open`, not just mount: this component instance persists
+  // across re-renders even though its output toggles between null and the
+  // dialog tree below, so an empty-deps effect would only ever fire before
+  // `open` first becomes true and never again.
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) {
-      return;
-    }
-    if (open && !dialog.open) {
-      dialog.showModal();
-    } else if (!open && dialog.open) {
-      dialog.close();
-    }
+    dialogRef.current?.showModal();
   }, [open]);
 
   // A plain wrapper rather than binding deleteItem directly to the form
@@ -43,6 +47,10 @@ export function DeleteItemDialog({
   // no .bind is needed to get it there.
   async function handleDelete() {
     await deleteItem(itemId);
+  }
+
+  if (!open) {
+    return null;
   }
 
   return (
