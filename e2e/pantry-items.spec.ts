@@ -164,9 +164,13 @@ test("signed-in user can adjust, edit, and delete a pantry item", async ({
   await expect(page.getByText("Basmati rice")).toBeVisible();
   await expect(page.getByRole("cell", { name: "4 g" })).toBeVisible();
 
-  // Deleting removes the item entirely — no confirmation step, unchanged
-  // behavior now that it's reached via the overflow menu (ADR 0004, PER-266).
+  // Deleting requires confirming in a dialog before it removes the item
+  // (ADR 0004, PER-269).
   await page.getByRole("button", { name: "Actions for Basmati rice" }).click();
   await page.getByRole("menuitem", { name: "Delete" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Delete Basmati rice?" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Delete" }).click();
   await expect(page.getByText("Your pantry is empty.")).toBeVisible();
 });
