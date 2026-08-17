@@ -21,6 +21,13 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          # predicate-quantifier: every is required for the negated (!) patterns
+          # below to actually exclude anything — the action's default ("some")
+          # matches a filter if ANY pattern matches, and every file matches "**",
+          # so without "every" this filter was always true regardless of the
+          # excludes (confirmed in a real research-only PR's CI run: build/e2e/
+          # screenshots all ran despite the change being a single docs/*.md file).
+          predicate-quantifier: every
           filters: |
             code:
               - "**"
