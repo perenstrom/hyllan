@@ -226,8 +226,14 @@ describe("SignedInHome", () => {
   it("orders the actions decrement, increment, overflow trigger", () => {
     render(<SignedInHome items={[itemRow()]} />);
 
+    // Scoped to aria-labeled controls only: RowActionsMenu also renders its
+    // (closed) DeleteItemDialog inline in this same container, and its
+    // Cancel/Delete buttons carry visible text instead of aria-label, so
+    // they fall outside what this test is asserting the order of.
     const controls = Array.from(
-      getActionsContainer().querySelectorAll("button, a"),
+      getActionsContainer().querySelectorAll(
+        "button[aria-label], a[aria-label]",
+      ),
     );
 
     expect(controls.map((el) => el.getAttribute("aria-label"))).toEqual([
@@ -268,12 +274,48 @@ describe("SignedInHome", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("deletes the item immediately on selecting Delete, with no confirmation step", async () => {
+  it("opens a confirmation dialog on selecting Delete instead of deleting immediately", async () => {
     const user = userEvent.setup();
     render(<SignedInHome items={[itemRow()]} />);
 
     await user.click(screen.getByRole("button", { name: "Actions for Rice" }));
     await user.click(screen.getByRole("menuitem", { name: "Delete" }));
+
+    expect(deleteItemMock).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("menuitem", { name: "Delete" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Delete Rice?" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This immediately and permanently deletes this pantry item. This cannot be undone.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("closes the delete confirmation dialog without deleting anything when canceled", async () => {
+    const user = userEvent.setup();
+    render(<SignedInHome items={[itemRow()]} />);
+
+    await user.click(screen.getByRole("button", { name: "Actions for Rice" }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(deleteItemMock).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("heading", { name: "Delete Rice?" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("deletes the item once the confirmation dialog's Delete button is confirmed", async () => {
+    const user = userEvent.setup();
+    render(<SignedInHome items={[itemRow()]} />);
+
+    await user.click(screen.getByRole("button", { name: "Actions for Rice" }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
 
     expect(deleteItemMock).toHaveBeenCalledExactlyOnceWith(
       "11111111-1111-1111-1111-111111111111",
