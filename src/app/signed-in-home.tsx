@@ -8,6 +8,13 @@ import { ACTION_BUTTON_CLASS, ACTION_ICON_CLASS } from "./action-button";
 import { AppHeader } from "./app-header";
 import { MinusIcon, PlusIcon } from "./icons";
 import { decrementItem, incrementItem } from "./items/actions";
+import {
+  PrototypeSwitcher,
+  useVariant,
+} from "./location-prototype/prototype-switcher";
+import { VariantA } from "./location-prototype/variant-a-expansion";
+import { VariantB } from "./location-prototype/variant-b-drilldown";
+import { VariantC } from "./location-prototype/variant-c-popover";
 import { RowActionsMenu } from "./row-actions-menu";
 import { StatusFilterDropdown } from "./status-filter-dropdown";
 import type { pantryItems } from "@/db/schema";
@@ -160,6 +167,12 @@ function SortableHeader({
 }
 
 export function SignedInHome({ items }: Props) {
+  // PROTOTYPE hook (PER-268) — dev-only, gated below. Called
+  // unconditionally per rules-of-hooks; wipe this whole block, the
+  // location-prototype/ directory, and the imports above once PER-268 is
+  // resolved and its answer is folded into the real table.
+  const prototypeVariant = useVariant();
+
   const [optimisticItems, addOptimisticUpdate] = useOptimistic(
     items,
     applyQuantityUpdate,
@@ -236,6 +249,20 @@ export function SignedInHome({ items }: Props) {
   async function handleDecrement(itemId: string) {
     addOptimisticUpdate({ itemId, type: "decrement" });
     await decrementItem(itemId);
+  }
+
+  // PROTOTYPE branch (PER-268) — dev-only, real rendering is untouched
+  // below. Delete this block along with the imports above once resolved.
+  if (process.env.NODE_ENV !== "production" && prototypeVariant) {
+    return (
+      <div className="flex flex-1 flex-col bg-zinc-50 font-sans dark:bg-black">
+        <AppHeader />
+        {prototypeVariant === "A" && <VariantA items={items} />}
+        {prototypeVariant === "B" && <VariantB items={items} />}
+        {prototypeVariant === "C" && <VariantC items={items} />}
+        <PrototypeSwitcher current={prototypeVariant} />
+      </div>
+    );
   }
 
   return (
