@@ -79,8 +79,18 @@ services:
       GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
       GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
       GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: "false"
-      # No SMTP configured: skip email confirmation entirely rather than
-      # have signups fail trying to send mail. Same posture as production.
+      # Resend's SMTP relay (see PER-263) — each Coolify app sets its own
+      # GOTRUE_SMTP_* values (own API key, shared sender domain, a
+      # distinguishing sender name) via its Environment Variables tab.
+      GOTRUE_SMTP_HOST: ${GOTRUE_SMTP_HOST}
+      GOTRUE_SMTP_PORT: ${GOTRUE_SMTP_PORT}
+      GOTRUE_SMTP_USER: ${GOTRUE_SMTP_USER}
+      GOTRUE_SMTP_PASS: ${GOTRUE_SMTP_PASS}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${GOTRUE_SMTP_ADMIN_EMAIL}
+      GOTRUE_SMTP_SENDER_NAME: ${GOTRUE_SMTP_SENDER_NAME}
+      # Deliberately left "true" even with SMTP now configured — same
+      # posture as production, see compose.coolify.yaml's auth service for
+      # why (app's signup flow has no email-confirmation waiting screen).
       GOTRUE_MAILER_AUTOCONFIRM: "true"
     # The official gotrue image declares no EXPOSE port at all (confirmed via
     # `docker inspect supabase/gotrue:v2.189.0` — Config.ExposedPorts is
