@@ -91,7 +91,14 @@ describe("addItem", () => {
     expect(addPantryItemMock).toHaveBeenCalledExactlyOnceWith(
       {},
       "household-1",
-      { name: "Rice", quantity: "2", unit: "kg", minimumQuantity: null },
+      {
+        name: "Rice",
+        quantity: "2",
+        unit: "kg",
+        minimumQuantity: null,
+        locationId: null,
+        originalLocationId: null,
+      },
     );
     expect(redirectMock).toHaveBeenCalledWith("/");
   });
@@ -166,24 +173,37 @@ describe("incrementItem / decrementItem / deleteItem", () => {
     getHouseholdForUserMock.mockResolvedValue({ id: "household-1" });
   });
 
-  it("increments the item within the signed-in user's household and revalidates the list", async () => {
-    await incrementItem("item-1");
+  it("increments the item's targeted bucket within the signed-in user's household and revalidates the list", async () => {
+    await incrementItem("item-1", "location-1");
 
     expect(incrementPantryItemQuantityMock).toHaveBeenCalledExactlyOnceWith(
       {},
       "household-1",
       "item-1",
+      "location-1",
     );
     expect(revalidatePathMock).toHaveBeenCalledWith("/");
   });
 
-  it("decrements the item within the signed-in user's household and revalidates the list", async () => {
-    await decrementItem("item-1");
+  it("increments the unassigned bucket when no location is given", async () => {
+    await incrementItem("item-1", null);
+
+    expect(incrementPantryItemQuantityMock).toHaveBeenCalledExactlyOnceWith(
+      {},
+      "household-1",
+      "item-1",
+      null,
+    );
+  });
+
+  it("decrements the item's targeted bucket within the signed-in user's household and revalidates the list", async () => {
+    await decrementItem("item-1", "location-1");
 
     expect(decrementPantryItemQuantityMock).toHaveBeenCalledExactlyOnceWith(
       {},
       "household-1",
       "item-1",
+      "location-1",
     );
     expect(revalidatePathMock).toHaveBeenCalledWith("/");
   });
@@ -202,7 +222,9 @@ describe("incrementItem / decrementItem / deleteItem", () => {
   it("redirects to login when there is no session, without mutating anything", async () => {
     getClaimsMock.mockResolvedValue({ data: null });
 
-    await expect(incrementItem("item-1")).rejects.toThrow("REDIRECT:/login");
+    await expect(incrementItem("item-1", null)).rejects.toThrow(
+      "REDIRECT:/login",
+    );
     expect(incrementPantryItemQuantityMock).not.toHaveBeenCalled();
   });
 });
@@ -233,7 +255,14 @@ describe("editItem", () => {
       {},
       "household-1",
       "item-1",
-      { name: "Beans", quantity: "3", unit: "kg", minimumQuantity: null },
+      {
+        name: "Beans",
+        quantity: "3",
+        unit: "kg",
+        minimumQuantity: null,
+        locationId: null,
+        originalLocationId: null,
+      },
     );
     expect(redirectMock).toHaveBeenCalledWith("/");
   });

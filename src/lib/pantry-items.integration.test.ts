@@ -1,11 +1,13 @@
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import * as schema from "@/db/schema";
-import { households, pantryItems } from "@/db/schema";
+import { households, itemLocations, locations, pantryItems } from "@/db/schema";
+import { addLocation } from "./locations";
 import {
   addPantryItem,
   decrementPantryItemQuantity,
@@ -55,14 +57,18 @@ describe("pantry-items", () => {
   });
 
   beforeEach(async () => {
+    // pantryItems first — deleting it cascades away any item_locations rows
+    // still pointing at a location, so locations can be cleared cleanly
+    // afterward.
     await db.delete(pantryItems);
+    await db.delete(locations);
   });
 
   afterAll(async () => {
     await client.close();
   });
 
-  it("creates a new row for a name the household doesn't already track", async () => {
+  it("creates a new row for a name the household doesn't already track, in the implicit unassigned bucket by default", async () => {
     const item = await addPantryItem(db, householdId, {
       name: "Rice",
       quantity: "2",
@@ -70,12 +76,35 @@ describe("pantry-items", () => {
     });
 
     expect(item).toMatchObject({ name: "Rice", quantity: "2", unit: "kg" });
+    expect(item.buckets).toEqual([
+      expect.objectContaining({ locationId: null, quantity: "2" }),
+    ]);
 
     const rows = await listPantryItems(db, householdId);
     expect(rows).toHaveLength(1);
   });
 
-  it("increments the existing row when the name matches case-insensitively", async () => {
+  it("creates the item's quantity at the given location instead of unassigned", async () => {
+    const pantry = await addLocation(db, householdId, "Pantry");
+
+    const item = await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+      locationId: pantry.id,
+    });
+
+    expect(item.quantity).toBe("2");
+    expect(item.buckets).toEqual([
+      expect.objectContaining({
+        locationId: pantry.id,
+        locationName: "Pantry",
+        quantity: "2",
+      }),
+    ]);
+  });
+
+  it("increments the existing row's total when the name matches case-insensitively", async () => {
     await addPantryItem(db, householdId, {
       name: "Rice",
       quantity: "2",
@@ -93,6 +122,30 @@ describe("pantry-items", () => {
     const rows = await listPantryItems(db, householdId);
     expect(rows).toHaveLength(1);
     expect(rows[0].name).toBe("Rice");
+  });
+
+  it("adds a second add at a different location as its own bucket, without touching the first", async () => {
+    const pantry = await addLocation(db, householdId, "Pantry");
+
+    await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+    });
+    const item = await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "1",
+      unit: "kg",
+      locationId: pantry.id,
+    });
+
+    expect(item.quantity).toBe("3");
+    expect(item.buckets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ locationId: null, quantity: "2" }),
+        expect.objectContaining({ locationId: pantry.id, quantity: "1" }),
+      ]),
+    );
   });
 
   it("rejects the add when the name matches but the unit differs, leaving the existing item unchanged", async () => {
@@ -193,12 +246,10 @@ describe("pantry-items", () => {
   it("enforces the (household_id, lower(name)) uniqueness constraint at the database level", async () => {
     await db
       .insert(pantryItems)
-      .values({ householdId, name: "Rice", quantity: "1", unit: "kg" });
+      .values({ householdId, name: "Rice", unit: "kg" });
 
     await expect(
-      db
-        .insert(pantryItems)
-        .values({ householdId, name: "RICE", quantity: "1", unit: "kg" }),
+      db.insert(pantryItems).values({ householdId, name: "RICE", unit: "kg" }),
     ).rejects.toThrow();
   });
 
@@ -246,7 +297,6 @@ describe("pantry-items", () => {
       db.insert(pantryItems).values({
         householdId,
         name: "Rice",
-        quantity: "1",
         unit: "kg",
         minimumQuantity: "-1",
       }),
@@ -280,33 +330,47 @@ describe("incrementPantryItemQuantity / decrementPantryItemQuantity", () => {
   });
 
   beforeEach(async () => {
+    // pantryItems first — deleting it cascades away any item_locations rows
+    // still pointing at a location, so locations can be cleared cleanly
+    // afterward.
     await db.delete(pantryItems);
+    await db.delete(locations);
   });
 
   afterAll(async () => {
     await client.close();
   });
 
-  it("increments the quantity of an item scoped to the household", async () => {
+  it("increments the unassigned bucket of a single-bucket item", async () => {
     const item = await addPantryItem(db, householdId, {
       name: "Rice",
       quantity: "2",
       unit: "kg",
     });
 
-    const updated = await incrementPantryItemQuantity(db, householdId, item.id);
+    const updated = await incrementPantryItemQuantity(
+      db,
+      householdId,
+      item.id,
+      null,
+    );
 
     expect(updated?.quantity).toBe("3");
   });
 
-  it("decrements the quantity of an item scoped to the household", async () => {
+  it("decrements the unassigned bucket of a single-bucket item", async () => {
     const item = await addPantryItem(db, householdId, {
       name: "Rice",
       quantity: "2",
       unit: "kg",
     });
 
-    const updated = await decrementPantryItemQuantity(db, householdId, item.id);
+    const updated = await decrementPantryItemQuantity(
+      db,
+      householdId,
+      item.id,
+      null,
+    );
 
     expect(updated?.quantity).toBe("1");
   });
@@ -318,9 +382,58 @@ describe("incrementPantryItemQuantity / decrementPantryItemQuantity", () => {
       unit: "kg",
     });
 
-    const updated = await decrementPantryItemQuantity(db, householdId, item.id);
+    const updated = await decrementPantryItemQuantity(
+      db,
+      householdId,
+      item.id,
+      null,
+    );
 
     expect(updated?.quantity).toBe("0");
+  });
+
+  it("adjusts only the targeted location's bucket, leaving others untouched", async () => {
+    const pantry = await addLocation(db, householdId, "Pantry");
+    const item = await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+    });
+    await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "5",
+      unit: "kg",
+      locationId: pantry.id,
+    });
+
+    await incrementPantryItemQuantity(db, householdId, item.id, pantry.id);
+
+    const [unassignedBucket] = await db
+      .select()
+      .from(itemLocations)
+      .where(eq(itemLocations.locationId, pantry.id));
+    expect(unassignedBucket.quantity).toBe("6");
+
+    const refreshed = await getPantryItem(db, householdId, item.id);
+    expect(refreshed?.quantity).toBe("8");
+  });
+
+  it("returns undefined when the targeted bucket doesn't exist", async () => {
+    const pantry = await addLocation(db, householdId, "Pantry");
+    const item = await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+    });
+
+    const updated = await incrementPantryItemQuantity(
+      db,
+      householdId,
+      item.id,
+      pantry.id,
+    );
+
+    expect(updated).toBeUndefined();
   });
 
   it("does not adjust an item belonging to a different household", async () => {
@@ -339,7 +452,12 @@ describe("incrementPantryItemQuantity / decrementPantryItemQuantity", () => {
       unit: "kg",
     });
 
-    const updated = await incrementPantryItemQuantity(db, householdId, item.id);
+    const updated = await incrementPantryItemQuantity(
+      db,
+      householdId,
+      item.id,
+      null,
+    );
 
     expect(updated).toBeUndefined();
   });
@@ -355,7 +473,11 @@ describe("updatePantryItem", () => {
   });
 
   beforeEach(async () => {
+    // pantryItems first — deleting it cascades away any item_locations rows
+    // still pointing at a location, so locations can be cleared cleanly
+    // afterward.
     await db.delete(pantryItems);
+    await db.delete(locations);
   });
 
   afterAll(async () => {
@@ -380,6 +502,96 @@ describe("updatePantryItem", () => {
       quantity: "5",
       unit: "g",
     });
+  });
+
+  it("sets the targeted bucket absolutely, without touching other buckets, when the location is unchanged", async () => {
+    const pantry = await addLocation(db, householdId, "Pantry");
+    const item = await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+    });
+    await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "5",
+      unit: "kg",
+      locationId: pantry.id,
+    });
+
+    const updated = await updatePantryItem(db, householdId, item.id, {
+      name: "Rice",
+      quantity: "9",
+      unit: "kg",
+      locationId: pantry.id,
+      originalLocationId: pantry.id,
+    });
+
+    expect(updated?.quantity).toBe("11"); // 2 (unassigned, untouched) + 9
+    expect(updated?.buckets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ locationId: null, quantity: "2" }),
+        expect.objectContaining({ locationId: pantry.id, quantity: "9" }),
+      ]),
+    );
+  });
+
+  it("moves the targeted bucket to a new, previously-empty location, without touching other buckets", async () => {
+    const pantry = await addLocation(db, householdId, "Pantry");
+    const garage = await addLocation(db, householdId, "Garage fridge");
+    const item = await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+    });
+    await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "5",
+      unit: "kg",
+      locationId: pantry.id,
+    });
+
+    // Editing the Pantry bucket (originalLocationId) but assigning it to
+    // Garage fridge (locationId) — a relocation, not a second add.
+    const updated = await updatePantryItem(db, householdId, item.id, {
+      name: "Rice",
+      quantity: "9",
+      unit: "kg",
+      locationId: garage.id,
+      originalLocationId: pantry.id,
+    });
+
+    expect(updated?.quantity).toBe("11"); // 2 (unassigned, untouched) + 9
+    expect(updated?.buckets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ locationId: null, quantity: "2" }),
+        expect.objectContaining({ locationId: garage.id, quantity: "9" }),
+      ]),
+    );
+    expect(
+      updated?.buckets.some((bucket) => bucket.locationId === pantry.id),
+    ).toBe(false);
+  });
+
+  it("moves the unassigned bucket to a location when editing a single-bucket item's location", async () => {
+    const pantry = await addLocation(db, householdId, "Pantry");
+    const item = await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+    });
+
+    const updated = await updatePantryItem(db, householdId, item.id, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+      locationId: pantry.id,
+      originalLocationId: null,
+    });
+
+    expect(updated?.quantity).toBe("2");
+    expect(updated?.buckets).toEqual([
+      expect.objectContaining({ locationId: pantry.id, quantity: "2" }),
+    ]);
   });
 
   it("updates the minimum quantity", async () => {
@@ -474,14 +686,18 @@ describe("deletePantryItem", () => {
   });
 
   beforeEach(async () => {
+    // pantryItems first — deleting it cascades away any item_locations rows
+    // still pointing at a location, so locations can be cleared cleanly
+    // afterward.
     await db.delete(pantryItems);
+    await db.delete(locations);
   });
 
   afterAll(async () => {
     await client.close();
   });
 
-  it("removes the item entirely", async () => {
+  it("removes the item entirely, cascading to its location buckets", async () => {
     const item = await addPantryItem(db, householdId, {
       name: "Rice",
       quantity: "2",
@@ -492,6 +708,12 @@ describe("deletePantryItem", () => {
 
     expect(deleted?.id).toBe(item.id);
     expect(await getPantryItem(db, householdId, item.id)).toBeUndefined();
+
+    const remainingBuckets = await db
+      .select()
+      .from(itemLocations)
+      .where(eq(itemLocations.pantryItemId, item.id));
+    expect(remainingBuckets).toHaveLength(0);
   });
 
   it("does not delete an item belonging to a different household", async () => {
