@@ -63,6 +63,12 @@ export default function LogInPage() {
           />
         </div>
 
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <Link href="/forgot-password" className="underline">
+            Forgot password?
+          </Link>
+        </p>
+
         {state && "error" in state && (
           <p className="text-sm text-red-600">{state.error}</p>
         )}

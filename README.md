@@ -32,6 +32,8 @@ GoTrue runs standalone (not the full Supabase bundle) against the same Postgres 
 
 The app talks to GoTrue via `@supabase/ssr` (`src/lib/supabase/`), with `NEXT_PUBLIC_SUPABASE_URL` pointing at the app's own origin rather than GoTrue directly: since standalone GoTrue has no Kong in front of it, `next.config.ts` rewrites `/auth/v1/*` to `GOTRUE_API_EXTERNAL_URL`, playing Kong's usual path-prefixing role. `src/proxy.ts` refreshes the session (rotating GoTrue's refresh token) on every request — required because Server Components can only read cookies, not set them. Server-side auth calls (`src/proxy.ts`, `src/lib/auth.ts`) skip that public rewrite when `GOTRUE_API_INTERNAL_URL` is set (staging/production — see `.env.example`), hitting GoTrue directly over the internal Docker network instead (`src/lib/supabase/internal-fetch.ts`, PER-272).
 
+**Forgot/reset password** (`/forgot-password`, `/reset-password`) goes through GoTrue's `/recover` endpoint, which fails outright without SMTP configured — staging and production have real SMTP (PER-263), but local dev doesn't. Locally, GoTrue's Send Email Hook stands in for it instead: `compose.yaml`'s `auth` service posts the email payload to `src/app/api/auth/send-email-hook/route.ts` (verified via `src/lib/webhook-signature.ts`) rather than sending mail, and that route just logs the link a real email would have contained — copy it from `npm run dev`'s own terminal output to continue the flow by hand.
+
 ## Database
 
 - `npm run db:generate` — diff `src/db/schema/app.ts` against the existing migrations and write a new one under `drizzle/`
