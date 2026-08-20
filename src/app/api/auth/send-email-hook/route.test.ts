@@ -102,4 +102,23 @@ describe("POST /api/auth/send-email-hook", () => {
 
     expect(response.status).toBe(500);
   });
+
+  it("refuses to run in a production build even with a valid signature", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const payload = JSON.stringify({
+      user: { email: "user@example.com" },
+      email_data: {
+        token_hash: "token-hash-value",
+        redirect_to: "http://localhost:3000/reset-password",
+        email_action_type: "recovery",
+        site_url: "http://localhost:3000",
+      },
+    });
+
+    const response = await POST(requestFor(payload));
+
+    expect(response.status).toBe(404);
+    expect(loggerInfoMock).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
+  });
 });

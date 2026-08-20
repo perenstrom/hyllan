@@ -19,6 +19,16 @@ type SendEmailPayload = {
 // email would have contained, so the forgot-password flow (PER-252) can be
 // exercised end-to-end without a mail provider.
 export async function POST(request: NextRequest) {
+  // Defense-in-depth on top of GOTRUE_HOOK_SEND_EMAIL_SECRETS only ever
+  // being set locally (compose.yaml) — a built app (`next build`/`next
+  // start`, what staging and production run) always has NODE_ENV
+  // "production", so this refuses to run there even if that secret were
+  // ever accidentally set, rather than silently swallowing real recovery
+  // emails behind a log line no one is watching.
+  if (process.env.NODE_ENV === "production") {
+    return new NextResponse(null, { status: 404 });
+  }
+
   const secret = process.env.GOTRUE_HOOK_SEND_EMAIL_SECRETS;
   if (!secret) {
     return NextResponse.json(

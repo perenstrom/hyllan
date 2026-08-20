@@ -1,24 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { parseNewPassword } from "@/lib/parse-new-password";
+
 export type UpdatePasswordResult = { error: string } | { success: true };
-
-type NewPasswordFields = { newPassword: string; confirmNewPassword: string };
-
-function parseNewPasswordFields(formData: FormData): NewPasswordFields | null {
-  const newPassword = formData.get("newPassword");
-  const confirmNewPassword = formData.get("confirmNewPassword");
-
-  if (
-    typeof newPassword !== "string" ||
-    typeof confirmNewPassword !== "string" ||
-    !newPassword ||
-    !confirmNewPassword
-  ) {
-    return null;
-  }
-
-  return { newPassword, confirmNewPassword };
-}
 
 // Takes the page's own Supabase client rather than constructing one (unlike
 // `changePassword`/`logIn`) — the recovery session this relies on only
@@ -31,7 +15,7 @@ export async function updatePassword(
   _prevState: UpdatePasswordResult | undefined,
   formData: FormData,
 ): Promise<UpdatePasswordResult> {
-  const fields = parseNewPasswordFields(formData);
+  const fields = parseNewPassword(formData);
   if (!fields) {
     return { error: "All fields are required." };
   }
