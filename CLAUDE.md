@@ -19,3 +19,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/) (`type(scope
 ### PR descriptions
 
 No manual line breaks mid-paragraph — they render as a staggered mess on mobile. See the "Pull requests" section in `README.md`.
+
+### Screenshots
+
+A new page, or a new visually distinct state (a modal, an empty/error state), needs a scenario added to the catalog. See the header comment in `screenshots/scenarios.ts`.

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
+import { LocationPickerCombobox } from "../location-picker-combobox";
+import type { LocationOption } from "@/lib/location";
 import { PANTRY_ITEM_UNITS } from "@/lib/pantry-item";
 import type { PantryItemUnit } from "@/lib/pantry-item";
 
@@ -18,6 +20,7 @@ type ItemFormDefaultValues = {
   quantity: string;
   unit: PantryItemUnit;
   minimumQuantity: string | null;
+  locationId: string | null;
 };
 
 type Props = {
@@ -25,6 +28,7 @@ type Props = {
   action: ItemFormAction;
   submitLabel: string;
   pendingLabel: string;
+  locations: LocationOption[];
   defaultValues?: ItemFormDefaultValues;
 };
 
@@ -36,9 +40,14 @@ export function ItemForm({
   action,
   submitLabel,
   pendingLabel,
+  locations: initialLocations,
   defaultValues,
 }: Props) {
   const [state, formAction, pending] = useActionState(action, undefined);
+  const [locations, setLocations] = useState(initialLocations);
+  const [locationId, setLocationId] = useState<string | null>(
+    defaultValues?.locationId ?? null,
+  );
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center bg-zinc-50 px-6 dark:bg-black">
@@ -63,7 +72,7 @@ export function ItemForm({
             type="text"
             required
             defaultValue={defaultValues?.name}
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
           />
         </div>
 
@@ -83,7 +92,7 @@ export function ItemForm({
               step="any"
               defaultValue={defaultValues?.quantity ?? "1"}
               required
-              className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+              className="h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
             />
           </div>
 
@@ -98,7 +107,11 @@ export function ItemForm({
               id="unit"
               name="unit"
               defaultValue={defaultValues?.unit ?? "count"}
-              className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+              // w-full: unlike <input>, <select> doesn't reliably stretch
+              // to fill a flex column's cross axis on its own — without
+              // this it sizes to its selected option's content instead,
+              // landing narrower than the Quantity field beside it.
+              className="h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
             >
               {PANTRY_ITEM_UNITS.map((unit) => (
                 <option key={unit} value={unit}>
@@ -123,12 +136,43 @@ export function ItemForm({
             min="0"
             step="any"
             defaultValue={defaultValues?.minimumQuantity ?? ""}
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
           />
           <p className="text-xs text-zinc-500 dark:text-zinc-500">
             Same unit as quantity. Leave blank to turn off low-stock tracking
             for this item.
           </p>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label
+            htmlFor="location"
+            className="text-sm text-zinc-600 dark:text-zinc-400"
+          >
+            Location (optional)
+          </label>
+          <LocationPickerCombobox
+            id="location"
+            locations={locations}
+            value={locationId}
+            onChange={setLocationId}
+            onLocationCreated={(location) =>
+              setLocations((current) => [...current, location])
+            }
+          />
+          {/* Edit mode only: the bucket this submission is editing, as it
+              was when the form opened — lets updatePantryItem move that
+              bucket's row when the field above changes it, instead of
+              leaving a stale duplicate behind at the old location. Absent
+              entirely for add, which has no "original" bucket to move
+              from. */}
+          {defaultValues && (
+            <input
+              type="hidden"
+              name="originalLocationId"
+              value={defaultValues.locationId ?? ""}
+            />
+          )}
         </div>
 
         {state?.error && <p className="text-sm text-red-600">{state.error}</p>}

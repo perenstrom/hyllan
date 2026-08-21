@@ -41,7 +41,7 @@ for (const scenario of SCENARIOS) {
       }
 
       sql = postgres(process.env.DATABASE_URL!);
-      ctx = await seedScenario(sql, scenario.name, scenario.seed);
+      ctx = await seedScenario(sql, scenario.name, scenario);
       cookie = buildMockSessionCookie({
         supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
         jwtSecret: process.env.GOTRUE_JWT_SECRET!,
@@ -71,13 +71,17 @@ for (const scenario of SCENARIOS) {
             ? scenario.route(ctx!)
             : scenario.route;
         await page.goto(route);
+        // The destination route's loading.tsx (role="status", PER-272) can
+        // still be showing when goto() resolves — Next streams the real
+        // content in afterward. A scenario with no `interactions` (which
+        // would otherwise auto-wait on some locator) has nothing else
+        // making it wait, so without this a screenshot can catch the
+        // loading flash instead of the state the scenario exists to show.
+        await page.getByRole("status").waitFor({ state: "hidden" });
         await scenario.interactions?.(page);
 
         await page.screenshot({
-          path: path.join(
-            OUTPUT_DIR,
-            `${scenario.name}-${viewport.name}.png`,
-          ),
+          path: path.join(OUTPUT_DIR, `${scenario.name}-${viewport.name}.png`),
           // Several scenarios (the pantry list, add/edit forms) overflow a
           // mobile viewport — a viewport-only screenshot would silently
           // crop the state the tool exists to show a reviewer.

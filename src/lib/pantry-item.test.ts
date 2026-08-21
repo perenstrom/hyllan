@@ -248,6 +248,8 @@ describe("parsePantryItemInput", () => {
         quantity: "2",
         unit: "kg",
         minimumQuantity: null,
+        locationId: null,
+        originalLocationId: null,
       },
     });
   });
@@ -264,6 +266,8 @@ describe("parsePantryItemInput", () => {
         quantity: "6",
         unit: "count",
         minimumQuantity: null,
+        locationId: null,
+        originalLocationId: null,
       },
     });
   });
@@ -310,7 +314,14 @@ describe("parsePantryItemInput", () => {
 
     expect(result).toEqual({
       ok: true,
-      value: { name: "Rice", quantity: "2", unit: "kg", minimumQuantity: null },
+      value: {
+        name: "Rice",
+        quantity: "2",
+        unit: "kg",
+        minimumQuantity: null,
+        locationId: null,
+        originalLocationId: null,
+      },
     });
   });
 
@@ -325,6 +336,52 @@ describe("parsePantryItemInput", () => {
     );
 
     expect(result.ok && result.value.minimumQuantity).toBeNull();
+  });
+
+  it("defaults locationId to null (unassigned) when omitted", () => {
+    const result = parsePantryItemInput(
+      formDataOf({ name: "Rice", quantity: "2", unit: "kg" }),
+    );
+
+    expect(result.ok && result.value.locationId).toBeNull();
+  });
+
+  it("parses a provided locationId", () => {
+    const result = parsePantryItemInput(
+      formDataOf({
+        name: "Rice",
+        quantity: "2",
+        unit: "kg",
+        locationId: "11111111-1111-1111-1111-111111111111",
+      }),
+    );
+
+    expect(result.ok && result.value.locationId).toBe(
+      "11111111-1111-1111-1111-111111111111",
+    );
+  });
+
+  it("defaults originalLocationId to null when omitted (an add, not an edit)", () => {
+    const result = parsePantryItemInput(
+      formDataOf({ name: "Rice", quantity: "2", unit: "kg" }),
+    );
+
+    expect(result.ok && result.value.originalLocationId).toBeNull();
+  });
+
+  it("parses a provided originalLocationId", () => {
+    const result = parsePantryItemInput(
+      formDataOf({
+        name: "Rice",
+        quantity: "2",
+        unit: "kg",
+        originalLocationId: "22222222-2222-2222-2222-222222222222",
+      }),
+    );
+
+    expect(result.ok && result.value.originalLocationId).toBe(
+      "22222222-2222-2222-2222-222222222222",
+    );
   });
 
   it("parses a valid minimum quantity", () => {

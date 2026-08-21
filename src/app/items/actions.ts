@@ -47,17 +47,23 @@ export async function addItem(
   redirect("/");
 }
 
-export async function incrementItem(itemId: string): Promise<void> {
+export async function incrementItem(
+  itemId: string,
+  locationId: string | null,
+): Promise<void> {
   const { claims } = await requireSessionClaims();
   const household = await getHouseholdForUser(db, claims.sub);
-  await incrementPantryItemQuantity(db, household.id, itemId);
+  await incrementPantryItemQuantity(db, household.id, itemId, locationId);
   revalidatePath("/");
 }
 
-export async function decrementItem(itemId: string): Promise<void> {
+export async function decrementItem(
+  itemId: string,
+  locationId: string | null,
+): Promise<void> {
   const { claims } = await requireSessionClaims();
   const household = await getHouseholdForUser(db, claims.sub);
-  await decrementPantryItemQuantity(db, household.id, itemId);
+  await decrementPantryItemQuantity(db, household.id, itemId, locationId);
   revalidatePath("/");
 }
 

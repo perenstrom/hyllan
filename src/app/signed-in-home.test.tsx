@@ -2,6 +2,9 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { PantryItemBucket } from "@/lib/location";
+import type { PantryItemWithLocations } from "@/lib/pantry-items";
+
 const decrementItemMock = vi.fn();
 const incrementItemMock = vi.fn();
 const deleteItemMock = vi.fn();
@@ -25,20 +28,41 @@ vi.mock("./actions", () => ({
 
 const { SignedInHome } = await import("./signed-in-home");
 
+const PANTRY_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+const GARAGE_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+
+// Single-bucket items (the common case, and the only shape most of these
+// tests need) get one implicit unassigned bucket holding the full
+// quantity — everything renders identically to the pre-location table.
 function itemRow(
-  overrides: Partial<Parameters<typeof SignedInHome>[0]["items"][number]> = {},
-) {
+  overrides: Partial<
+    Omit<PantryItemWithLocations, "buckets"> & { buckets: PantryItemBucket[] }
+  > = {},
+): PantryItemWithLocations {
+  const quantity = overrides.quantity ?? "2";
+  const buckets = overrides.buckets ?? [
+    { locationId: null, locationName: null, quantity },
+  ];
   return {
     id: "11111111-1111-1111-1111-111111111111",
     householdId: "22222222-2222-2222-2222-222222222222",
     name: "Rice",
-    quantity: "2",
-    unit: "kg" as const,
-    minimumQuantity: null as string | null,
+    unit: "kg",
+    minimumQuantity: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
+    quantity,
+    buckets,
   };
+}
+
+function renderHome(
+  props: Partial<Parameters<typeof SignedInHome>[0]> & {
+    items: PantryItemWithLocations[];
+  },
+) {
+  return render(<SignedInHome locations={[]} {...props} />);
 }
 
 function nameCells() {
@@ -57,45 +81,43 @@ describe("SignedInHome", () => {
   });
 
   it("shows the empty state when there are no items", () => {
-    render(<SignedInHome items={[]} />);
+    renderHome({ items: [] });
 
     expect(screen.getByText("Your pantry is empty.")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
   it("renders a row per item with the unit postfixed onto the amount", () => {
-    render(<SignedInHome items={[itemRow()]} />);
+    renderHome({ items: [itemRow()] });
 
     expect(screen.getByRole("cell", { name: "Rice" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "2 kg" })).toBeInTheDocument();
   });
 
   it("omits the unit for the unit-less count default", () => {
-    render(
-      <SignedInHome
-        items={[itemRow({ name: "Eggs", quantity: "6", unit: "count" })]}
-      />,
-    );
+    renderHome({
+      items: [itemRow({ name: "Eggs", quantity: "6", unit: "count" })],
+    });
 
     expect(screen.getByRole("cell", { name: "6" })).toBeInTheDocument();
   });
 
   it("keeps a zero-quantity item visible, with a screen-reader-only out-of-stock label", () => {
-    render(<SignedInHome items={[itemRow({ quantity: "0" })]} />);
+    renderHome({ items: [itemRow({ quantity: "0" })] });
 
     expect(screen.getByText("Rice")).toBeInTheDocument();
     expect(screen.getByText("Out of stock")).toHaveClass("sr-only");
   });
 
   it("tints an out-of-stock row's background instead of showing a visible label", () => {
-    render(<SignedInHome items={[itemRow({ quantity: "0" })]} />);
+    renderHome({ items: [itemRow({ quantity: "0" })] });
 
     const row = screen.getByText("Rice").closest("tr");
     expect(row).toHaveClass("bg-red-100", "dark:bg-red-950");
   });
 
   it("does not label or tint an in-stock item as out of stock", () => {
-    render(<SignedInHome items={[itemRow()]} />);
+    renderHome({ items: [itemRow()] });
 
     expect(screen.queryByText("Out of stock")).not.toBeInTheDocument();
     const row = screen.getByText("Rice").closest("tr");
@@ -103,11 +125,9 @@ describe("SignedInHome", () => {
   });
 
   it("tints a low-stock row amber with a screen-reader-only label, when quantity is at or below its minimum", () => {
-    render(
-      <SignedInHome
-        items={[itemRow({ quantity: "1", minimumQuantity: "2" })]}
-      />,
-    );
+    renderHome({
+      items: [itemRow({ quantity: "1", minimumQuantity: "2" })],
+    });
 
     expect(screen.getByText("Low stock")).toHaveClass("sr-only");
     const row = screen.getByText("Rice").closest("tr");
@@ -115,11 +135,9 @@ describe("SignedInHome", () => {
   });
 
   it("treats out of stock (quantity zero) as taking precedence over low stock, never both", () => {
-    render(
-      <SignedInHome
-        items={[itemRow({ quantity: "0", minimumQuantity: "2" })]}
-      />,
-    );
+    renderHome({
+      items: [itemRow({ quantity: "0", minimumQuantity: "2" })],
+    });
 
     expect(screen.getByText("Out of stock")).toHaveClass("sr-only");
     expect(screen.queryByText("Low stock")).not.toBeInTheDocument();
@@ -129,17 +147,15 @@ describe("SignedInHome", () => {
   });
 
   it("never treats an item with no minimum quantity set as low stock", () => {
-    render(
-      <SignedInHome
-        items={[itemRow({ quantity: "1", minimumQuantity: null })]}
-      />,
-    );
+    renderHome({
+      items: [itemRow({ quantity: "1", minimumQuantity: null })],
+    });
 
     expect(screen.queryByText("Low stock")).not.toBeInTheDocument();
   });
 
   it("removes the content container's horizontal padding below sm so the table can sit flush, restoring it at/above sm", () => {
-    render(<SignedInHome items={[]} />);
+    renderHome({ items: [] });
 
     const main = screen.getByRole("main");
     expect(main).not.toHaveClass("px-2");
@@ -147,14 +163,14 @@ describe("SignedInHome", () => {
   });
 
   it("keeps a small horizontal inset on the header row below sm, since main no longer provides one there", () => {
-    render(<SignedInHome items={[]} />);
+    renderHome({ items: [] });
 
     const header = screen.getByText("Your pantry").closest("div");
     expect(header).toHaveClass("px-2", "sm:px-0");
   });
 
   it("shrinks table cell horizontal padding below sm, restoring it at/above sm", () => {
-    render(<SignedInHome items={[itemRow()]} />);
+    renderHome({ items: [itemRow()] });
 
     const cells = [
       ...screen.getAllByRole("columnheader"),
@@ -167,7 +183,7 @@ describe("SignedInHome", () => {
   });
 
   it("drops the table wrapper's border and rounded corners below sm, restoring them at/above sm", () => {
-    render(<SignedInHome items={[itemRow()]} />);
+    renderHome({ items: [itemRow()] });
 
     const wrapper = screen.getByRole("table").parentElement as HTMLElement;
     expect(wrapper).not.toHaveClass("border", "rounded-lg");
@@ -180,7 +196,7 @@ describe("SignedInHome", () => {
   });
 
   it("links the add-item action to the focused form", () => {
-    render(<SignedInHome items={[]} />);
+    renderHome({ items: [] });
 
     expect(screen.getByRole("link", { name: "+ Add item" })).toHaveAttribute(
       "href",
@@ -189,7 +205,7 @@ describe("SignedInHome", () => {
   });
 
   it("renders increment/decrement controls and an overflow menu trigger per item", () => {
-    render(<SignedInHome items={[itemRow()]} />);
+    renderHome({ items: [itemRow()] });
 
     expect(
       screen.getByRole("button", { name: "Increase Rice quantity" }),
@@ -216,7 +232,7 @@ describe("SignedInHome", () => {
   }
 
   it("lays the actions out as a single row at every viewport (ADR 0004, PER-266)", () => {
-    render(<SignedInHome items={[itemRow()]} />);
+    renderHome({ items: [itemRow()] });
 
     const container = getActionsContainer();
     expect(container).toHaveClass("flex", "items-center", "gap-1.5");
@@ -224,7 +240,7 @@ describe("SignedInHome", () => {
   });
 
   it("orders the actions decrement, increment, overflow trigger", () => {
-    render(<SignedInHome items={[itemRow()]} />);
+    renderHome({ items: [itemRow()] });
 
     // Scoped to aria-labeled controls only: RowActionsMenu also renders its
     // (closed) DeleteItemDialog inline in this same container, and its
@@ -245,7 +261,7 @@ describe("SignedInHome", () => {
 
   it("opens the overflow menu with plain-text Edit and Delete menu items", async () => {
     const user = userEvent.setup();
-    render(<SignedInHome items={[itemRow()]} />);
+    renderHome({ items: [itemRow()] });
 
     expect(
       screen.queryByRole("menuitem", { name: "Edit" }),
@@ -264,7 +280,7 @@ describe("SignedInHome", () => {
 
   it("closes the overflow menu once Edit is selected", async () => {
     const user = userEvent.setup();
-    render(<SignedInHome items={[itemRow()]} />);
+    renderHome({ items: [itemRow()] });
 
     await user.click(screen.getByRole("button", { name: "Actions for Rice" }));
     await user.click(screen.getByRole("menuitem", { name: "Edit" }));
@@ -276,7 +292,7 @@ describe("SignedInHome", () => {
 
   it("opens a confirmation dialog on selecting Delete instead of deleting immediately", async () => {
     const user = userEvent.setup();
-    render(<SignedInHome items={[itemRow()]} />);
+    renderHome({ items: [itemRow()] });
 
     await user.click(screen.getByRole("button", { name: "Actions for Rice" }));
     await user.click(screen.getByRole("menuitem", { name: "Delete" }));
@@ -297,7 +313,7 @@ describe("SignedInHome", () => {
 
   it("closes the delete confirmation dialog without deleting anything when canceled", async () => {
     const user = userEvent.setup();
-    render(<SignedInHome items={[itemRow()]} />);
+    renderHome({ items: [itemRow()] });
 
     await user.click(screen.getByRole("button", { name: "Actions for Rice" }));
     await user.click(screen.getByRole("menuitem", { name: "Delete" }));
@@ -311,7 +327,7 @@ describe("SignedInHome", () => {
 
   it("deletes the item once the confirmation dialog's Delete button is confirmed", async () => {
     const user = userEvent.setup();
-    render(<SignedInHome items={[itemRow()]} />);
+    renderHome({ items: [itemRow()] });
 
     await user.click(screen.getByRole("button", { name: "Actions for Rice" }));
     await user.click(screen.getByRole("menuitem", { name: "Delete" }));
@@ -324,7 +340,7 @@ describe("SignedInHome", () => {
 
   it("closes the overflow menu on outside click", async () => {
     const user = userEvent.setup();
-    render(<SignedInHome items={[itemRow()]} />);
+    renderHome({ items: [itemRow()] });
 
     await user.click(screen.getByRole("button", { name: "Actions for Rice" }));
     expect(screen.getByRole("menuitem", { name: "Edit" })).toBeInTheDocument();
@@ -342,7 +358,7 @@ describe("SignedInHome", () => {
 
   it("supports arrow-key navigation between the overflow menu's items", async () => {
     const user = userEvent.setup();
-    render(<SignedInHome items={[itemRow()]} />);
+    renderHome({ items: [itemRow()] });
 
     await user.click(screen.getByRole("button", { name: "Actions for Rice" }));
     await user.keyboard("{ArrowDown}");
@@ -356,7 +372,7 @@ describe("SignedInHome", () => {
 
   it("closes the overflow menu on Escape", async () => {
     const user = userEvent.setup();
-    render(<SignedInHome items={[itemRow()]} />);
+    renderHome({ items: [itemRow()] });
 
     await user.click(screen.getByRole("button", { name: "Actions for Rice" }));
     expect(screen.getByRole("menuitem", { name: "Edit" })).toBeInTheDocument();
@@ -369,7 +385,7 @@ describe("SignedInHome", () => {
   });
 
   it("disables the decrement control once an item is out of stock", () => {
-    render(<SignedInHome items={[itemRow({ quantity: "0" })]} />);
+    renderHome({ items: [itemRow({ quantity: "0" })] });
 
     expect(
       screen.getByRole("button", { name: "Decrease Rice quantity" }),
@@ -384,7 +400,7 @@ describe("SignedInHome", () => {
       }),
     );
 
-    render(<SignedInHome items={[itemRow({ quantity: "2" })]} />);
+    renderHome({ items: [itemRow({ quantity: "2" })] });
     fireEvent.click(
       screen.getByRole("button", { name: "Increase Rice quantity" }),
     );
@@ -394,6 +410,7 @@ describe("SignedInHome", () => {
     ).toBeInTheDocument();
     expect(incrementItemMock).toHaveBeenCalledExactlyOnceWith(
       "11111111-1111-1111-1111-111111111111",
+      null,
     );
 
     resolveIncrement();
@@ -407,7 +424,7 @@ describe("SignedInHome", () => {
       }),
     );
 
-    render(<SignedInHome items={[itemRow({ quantity: "2" })]} />);
+    renderHome({ items: [itemRow({ quantity: "2" })] });
     fireEvent.click(
       screen.getByRole("button", { name: "Decrease Rice quantity" }),
     );
@@ -417,6 +434,7 @@ describe("SignedInHome", () => {
     ).toBeInTheDocument();
     expect(decrementItemMock).toHaveBeenCalledExactlyOnceWith(
       "11111111-1111-1111-1111-111111111111",
+      null,
     );
 
     resolveDecrement();
@@ -430,7 +448,7 @@ describe("SignedInHome", () => {
       }),
     );
 
-    render(<SignedInHome items={[itemRow({ quantity: "0.5" })]} />);
+    renderHome({ items: [itemRow({ quantity: "0.5" })] });
     fireEvent.click(
       screen.getByRole("button", { name: "Decrease Rice quantity" }),
     );
@@ -473,7 +491,7 @@ describe("SignedInHome", () => {
 
   describe("column-header sorting (PER-249)", () => {
     it("renders rows in the incoming (default createdAt) order with aria-sort none on both headers", () => {
-      render(<SignedInHome items={sortItems()} />);
+      renderHome({ items: sortItems() });
 
       expect(nameCells()).toEqual(["Banana", "apple", "Cherry"]);
       expect(nameHeader()).toHaveAttribute("aria-sort", "none");
@@ -481,7 +499,7 @@ describe("SignedInHome", () => {
     });
 
     it("sorts by name ascending on first click, case-insensitively", () => {
-      render(<SignedInHome items={sortItems()} />);
+      renderHome({ items: sortItems() });
 
       fireEvent.click(within(nameHeader()).getByRole("button"));
 
@@ -490,7 +508,7 @@ describe("SignedInHome", () => {
     });
 
     it("cycles name ascending -> descending -> default on repeated clicks", () => {
-      render(<SignedInHome items={sortItems()} />);
+      renderHome({ items: sortItems() });
       const button = within(nameHeader()).getByRole("button");
 
       fireEvent.click(button);
@@ -504,7 +522,7 @@ describe("SignedInHome", () => {
     });
 
     it("sorts by amount ascending on the raw numeric quantity", () => {
-      render(<SignedInHome items={sortItems()} />);
+      renderHome({ items: sortItems() });
 
       fireEvent.click(within(amountHeader()).getByRole("button"));
 
@@ -513,7 +531,7 @@ describe("SignedInHome", () => {
     });
 
     it("switching to a different column always restarts at ascending", () => {
-      render(<SignedInHome items={sortItems()} />);
+      renderHome({ items: sortItems() });
 
       const nameButton = within(nameHeader()).getByRole("button");
       fireEvent.click(nameButton);
@@ -527,7 +545,7 @@ describe("SignedInHome", () => {
     });
 
     it("does not make the Actions header sortable", () => {
-      render(<SignedInHome items={sortItems()} />);
+      renderHome({ items: sortItems() });
 
       const actionsHeader = screen.getByRole("columnheader", {
         name: "Actions",
@@ -539,11 +557,11 @@ describe("SignedInHome", () => {
     });
 
     it("persists sort state to localStorage and restores it on the next render", () => {
-      const { unmount } = render(<SignedInHome items={sortItems()} />);
+      const { unmount } = renderHome({ items: sortItems() });
       fireEvent.click(within(amountHeader()).getByRole("button"));
       unmount();
 
-      render(<SignedInHome items={sortItems()} />);
+      renderHome({ items: sortItems() });
 
       expect(nameCells()).toEqual(["Cherry", "Banana", "apple"]);
       expect(amountHeader()).toHaveAttribute("aria-sort", "ascending");
@@ -557,7 +575,7 @@ describe("SignedInHome", () => {
         }),
       );
 
-      render(<SignedInHome items={sortItems()} />);
+      renderHome({ items: sortItems() });
       fireEvent.click(within(amountHeader()).getByRole("button"));
       expect(nameCells()).toEqual(["Cherry", "Banana", "apple"]);
 
@@ -606,7 +624,7 @@ describe("SignedInHome", () => {
     }
 
     it("does not render the dropdown when the pantry is empty", () => {
-      render(<SignedInHome items={[]} />);
+      renderHome({ items: [] });
 
       expect(
         screen.queryByRole("button", { name: /^Status/ }),
@@ -614,7 +632,7 @@ describe("SignedInHome", () => {
     });
 
     it("shows every item by default, with all three boxes checked", () => {
-      render(<SignedInHome items={statusItems()} />);
+      renderHome({ items: statusItems() });
       openStatusDropdown();
 
       expect(screen.getByRole("checkbox", { name: "In stock" })).toBeChecked();
@@ -628,7 +646,7 @@ describe("SignedInHome", () => {
     });
 
     it("hides rows whose status is unchecked and shows the trigger's active count", () => {
-      render(<SignedInHome items={statusItems()} />);
+      renderHome({ items: statusItems() });
       openStatusDropdown();
 
       fireEvent.click(screen.getByRole("checkbox", { name: "Low stock" }));
@@ -642,7 +660,7 @@ describe("SignedInHome", () => {
     });
 
     it("shows the empty-state message when every box is unchecked, without blocking the action", () => {
-      render(<SignedInHome items={statusItems()} />);
+      renderHome({ items: statusItems() });
       openStatusDropdown();
 
       fireEvent.click(screen.getByRole("checkbox", { name: "In stock" }));
@@ -656,12 +674,12 @@ describe("SignedInHome", () => {
     });
 
     it("persists the filter to localStorage and restores it on the next render", () => {
-      const { unmount } = render(<SignedInHome items={statusItems()} />);
+      const { unmount } = renderHome({ items: statusItems() });
       openStatusDropdown();
       fireEvent.click(screen.getByRole("checkbox", { name: "Low stock" }));
       unmount();
 
-      render(<SignedInHome items={statusItems()} />);
+      renderHome({ items: statusItems() });
 
       expect(screen.queryByText("Low stock item")).not.toBeInTheDocument();
       expect(
@@ -677,7 +695,7 @@ describe("SignedInHome", () => {
         }),
       );
 
-      render(<SignedInHome items={statusItems()} />);
+      renderHome({ items: statusItems() });
       openStatusDropdown();
       fireEvent.click(screen.getByRole("checkbox", { name: "Out of stock" }));
       expect(screen.getByText("In stock item")).toBeInTheDocument();
@@ -696,6 +714,297 @@ describe("SignedInHome", () => {
       expect(screen.queryByText("In stock item")).not.toBeInTheDocument();
 
       resolveDecrement();
+    });
+  });
+
+  describe("multi-location row expansion (PER-288)", () => {
+    function multiLocationItem() {
+      return itemRow({
+        name: "Rice",
+        quantity: "8",
+        buckets: [
+          { locationId: PANTRY_ID, locationName: "Pantry", quantity: "5" },
+          { locationId: null, locationName: null, quantity: "3" },
+        ],
+      });
+    }
+
+    it("shows a chevron and starts expanded for a multi-location item", () => {
+      renderHome({ items: [multiLocationItem()] });
+
+      expect(
+        screen.getByRole("button", { name: "Collapse Rice locations" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Pantry")).toBeInTheDocument();
+      expect(screen.getByText("Unassigned")).toBeInTheDocument();
+    });
+
+    it("shows the true total on the top-level row regardless of expansion", () => {
+      renderHome({ items: [multiLocationItem()] });
+
+      expect(screen.getByRole("cell", { name: "8 kg" })).toBeInTheDocument();
+    });
+
+    it("does not show a chevron for a single-bucket item", () => {
+      renderHome({ items: [itemRow()] });
+
+      expect(
+        screen.queryByRole("button", { name: /locations$/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("collapses and re-expands via the chevron", async () => {
+      const user = userEvent.setup();
+      renderHome({ items: [multiLocationItem()] });
+
+      await user.click(
+        screen.getByRole("button", { name: "Collapse Rice locations" }),
+      );
+      expect(screen.queryByText("Pantry")).not.toBeInTheDocument();
+
+      await user.click(
+        screen.getByRole("button", { name: "Expand Rice locations" }),
+      );
+      expect(screen.getByText("Pantry")).toBeInTheDocument();
+    });
+
+    it("gives each sub-row its own direct +/- targeting that bucket's location", () => {
+      renderHome({ items: [multiLocationItem()] });
+
+      expect(
+        screen.getByRole("button", {
+          name: "Increase Rice quantity at Pantry",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", {
+          name: "Increase Rice quantity at Unassigned",
+        }),
+      ).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Increase Rice quantity at Pantry",
+        }),
+      );
+
+      expect(incrementItemMock).toHaveBeenCalledExactlyOnceWith(
+        "11111111-1111-1111-1111-111111111111",
+        PANTRY_ID,
+      );
+    });
+
+    it("shows no direct +/- on the top-level row of a multi-location item", () => {
+      renderHome({ items: [multiLocationItem()] });
+
+      expect(
+        screen.queryByRole("button", { name: "Increase Rice quantity" }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("Expanded below")).toBeInTheDocument();
+    });
+  });
+
+  describe("group-by switch (PER-288)", () => {
+    function twoLocationItems() {
+      return [
+        itemRow({
+          id: "11111111-1111-1111-1111-111111111111",
+          name: "Rice",
+          quantity: "5",
+          buckets: [
+            { locationId: PANTRY_ID, locationName: "Pantry", quantity: "5" },
+          ],
+        }),
+        itemRow({
+          id: "22222222-2222-2222-2222-222222222222",
+          name: "Coffee",
+          quantity: "2",
+          buckets: [
+            {
+              locationId: GARAGE_ID,
+              locationName: "Garage fridge",
+              quantity: "2",
+            },
+          ],
+        }),
+      ];
+    }
+
+    it("defaults to By item", () => {
+      renderHome({ items: twoLocationItems() });
+
+      expect(screen.getByRole("button", { name: "By item" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+    });
+
+    it("groups items into one section per location when switched to By location", async () => {
+      const user = userEvent.setup();
+      renderHome({
+        items: twoLocationItems(),
+        locations: [
+          { id: PANTRY_ID, name: "Pantry" },
+          { id: GARAGE_ID, name: "Garage fridge" },
+        ],
+      });
+
+      await user.click(screen.getByRole("button", { name: "By location" }));
+
+      expect(
+        screen.getByRole("heading", { name: "Pantry" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Garage fridge" }),
+      ).toBeInTheDocument();
+    });
+
+    it("omits empty sections", async () => {
+      const user = userEvent.setup();
+      renderHome({
+        items: [
+          itemRow({
+            buckets: [
+              { locationId: PANTRY_ID, locationName: "Pantry", quantity: "2" },
+            ],
+          }),
+        ],
+        locations: [{ id: PANTRY_ID, name: "Pantry" }],
+      });
+
+      await user.click(screen.getByRole("button", { name: "By location" }));
+
+      expect(screen.queryByText("Unassigned")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("location filter (PER-288)", () => {
+    const locations = [
+      { id: PANTRY_ID, name: "Pantry" },
+      { id: GARAGE_ID, name: "Garage fridge" },
+    ];
+
+    function openLocationDropdown() {
+      fireEvent.click(screen.getByRole("button", { name: /^Locations/ }));
+    }
+
+    it("shows every location plus Unassigned, all checked by default", () => {
+      renderHome({ items: [itemRow()], locations });
+      openLocationDropdown();
+
+      expect(screen.getByRole("checkbox", { name: "Pantry" })).toBeChecked();
+      expect(
+        screen.getByRole("checkbox", { name: "Garage fridge" }),
+      ).toBeChecked();
+      expect(
+        screen.getByRole("checkbox", { name: "Unassigned" }),
+      ).toBeChecked();
+    });
+
+    it("hides an item whose quantity sits only in a hidden location", () => {
+      renderHome({
+        items: [
+          itemRow({
+            buckets: [
+              { locationId: PANTRY_ID, locationName: "Pantry", quantity: "2" },
+            ],
+          }),
+        ],
+        locations,
+      });
+      openLocationDropdown();
+
+      fireEvent.click(screen.getByRole("checkbox", { name: "Pantry" }));
+
+      expect(screen.queryByText("Rice")).not.toBeInTheDocument();
+    });
+
+    it("hides only the hidden location's sub-row, keeping a multi-location item visible", () => {
+      renderHome({
+        items: [
+          itemRow({
+            quantity: "8",
+            buckets: [
+              { locationId: PANTRY_ID, locationName: "Pantry", quantity: "5" },
+              { locationId: null, locationName: null, quantity: "3" },
+            ],
+          }),
+        ],
+        locations,
+      });
+      openLocationDropdown();
+
+      fireEvent.click(screen.getByRole("checkbox", { name: "Pantry" }));
+
+      // Scoped to the table: the still-open dropdown's own "Pantry"
+      // checkbox label would otherwise match too. With only one bucket left
+      // visible, the row collapses to the plain single-bucket display (no
+      // chevron, no "Unassigned" sub-row label) — same as an item that only
+      // ever had the one bucket.
+      const table = screen.getByRole("table");
+      expect(within(table).getByText("Rice")).toBeInTheDocument();
+      expect(within(table).queryByText("Pantry")).not.toBeInTheDocument();
+      expect(
+        within(table).queryByRole("button", { name: /locations$/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the true total in the Amount column regardless of the filter", () => {
+      renderHome({
+        items: [
+          itemRow({
+            quantity: "8",
+            buckets: [
+              { locationId: PANTRY_ID, locationName: "Pantry", quantity: "5" },
+              { locationId: null, locationName: null, quantity: "3" },
+            ],
+          }),
+        ],
+        locations,
+      });
+      openLocationDropdown();
+
+      fireEvent.click(screen.getByRole("checkbox", { name: "Pantry" }));
+
+      expect(screen.getByRole("cell", { name: "8 kg" })).toBeInTheDocument();
+    });
+
+    it("links to the manage-locations page", () => {
+      renderHome({ items: [itemRow()], locations });
+      openLocationDropdown();
+
+      expect(
+        screen.getByRole("link", { name: "Manage locations →" }),
+      ).toHaveAttribute("href", "/locations");
+    });
+
+    it("persists the filter to localStorage and restores it on the next render", () => {
+      const { unmount } = renderHome({
+        items: [
+          itemRow({
+            buckets: [
+              { locationId: PANTRY_ID, locationName: "Pantry", quantity: "2" },
+            ],
+          }),
+        ],
+        locations,
+      });
+      openLocationDropdown();
+      fireEvent.click(screen.getByRole("checkbox", { name: "Pantry" }));
+      unmount();
+
+      renderHome({
+        items: [
+          itemRow({
+            buckets: [
+              { locationId: PANTRY_ID, locationName: "Pantry", quantity: "2" },
+            ],
+          }),
+        ],
+        locations,
+      });
+
+      expect(screen.queryByText("Rice")).not.toBeInTheDocument();
     });
   });
 });

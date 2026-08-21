@@ -40,8 +40,8 @@ describe("deleteUserAccount", () => {
       .returning();
 
     await db.insert(pantryItems).values([
-      { householdId: household.id, name: "Rice", quantity: "2", unit: "kg" },
-      { householdId: household.id, name: "Eggs", quantity: "6" },
+      { householdId: household.id, name: "Rice", unit: "kg" },
+      { householdId: household.id, name: "Eggs" },
     ]);
 
     await deleteUserAccount(db, TEST_USER_ID);

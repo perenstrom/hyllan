@@ -3,6 +3,7 @@ import { SignedOutHome } from "./signed-out-home";
 import { db } from "@/db/client";
 import { getSessionClaims } from "@/lib/auth";
 import { getHouseholdForUser } from "@/lib/household";
+import { listLocations } from "@/lib/locations";
 import { listPantryItems } from "@/lib/pantry-items";
 
 export default async function Home() {
@@ -13,7 +14,10 @@ export default async function Home() {
   }
 
   const household = await getHouseholdForUser(db, claims.sub);
-  const items = await listPantryItems(db, household.id);
+  const [items, locations] = await Promise.all([
+    listPantryItems(db, household.id),
+    listLocations(db, household.id),
+  ]);
 
-  return <SignedInHome items={items} />;
+  return <SignedInHome items={items} locations={locations} />;
 }

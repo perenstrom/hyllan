@@ -109,6 +109,16 @@ export type PantryItemFormInput = {
   // most add/adjust call sites) don't have to spell out "unset" — callers
   // that omit it get the same "no threshold" behavior as passing null.
   minimumQuantity?: string | null;
+  // Which (item, location) bucket `quantity` applies to (ADR 0005) — null
+  // (and omitted) means the implicit unassigned bucket, the form's default.
+  locationId?: string | null;
+  // Only meaningful to updatePantryItem: the bucket this submission is
+  // editing, as it was when the form opened — null for the implicit
+  // unassigned bucket, undefined for an add (addPantryItem never reads
+  // this). Lets an edit that changes `locationId` move that one bucket's
+  // row to the new location instead of leaving a stale duplicate behind at
+  // the old one — see updatePantryItem's comment.
+  originalLocationId?: string | null;
 };
 
 export type ParsePantryItemInputResult =
@@ -155,7 +165,35 @@ export function parsePantryItemInput(
     }
   }
 
-  return { ok: true, value: { name, quantity, unit, minimumQuantity } };
+  // Blank/missing means the implicit unassigned bucket (ADR 0005) — the
+  // combobox's hidden input only ever carries a real location id or "".
+  const rawLocationId = formData.get("locationId");
+  const locationId =
+    typeof rawLocationId === "string" && rawLocationId !== ""
+      ? rawLocationId
+      : null;
+
+  // Absent entirely for an add (ItemForm only renders this hidden field in
+  // edit mode) — parses to null either way, which addPantryItem never
+  // reads, so the ambiguity between "add" and "editing the unassigned
+  // bucket" doesn't matter here.
+  const rawOriginalLocationId = formData.get("originalLocationId");
+  const originalLocationId =
+    typeof rawOriginalLocationId === "string" && rawOriginalLocationId !== ""
+      ? rawOriginalLocationId
+      : null;
+
+  return {
+    ok: true,
+    value: {
+      name,
+      quantity,
+      unit,
+      minimumQuantity,
+      locationId,
+      originalLocationId,
+    },
+  };
 }
 
 export type PantryItemStockStatus = "in-stock" | "low-stock" | "out-of-stock";
