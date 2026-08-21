@@ -69,6 +69,21 @@ services:
       # No SMTP configured for local dev: skip email confirmation entirely
       # rather than have signups fail trying to send mail.
       GOTRUE_MAILER_AUTOCONFIRM: "true"
+      # Recovery emails aren't covered by GOTRUE_MAILER_AUTOCONFIRM above —
+      # /recover fails outright without SMTP configured (see PER-263). The
+      # Send Email Hook (src/app/api/auth/send-email-hook/route.ts) stands
+      # in for SMTP here: GoTrue POSTs the email payload to the app instead
+      # of sending it, and the route just logs the link a developer would
+      # otherwise have received by mail. host.docker.internal is how this
+      # container reaches the app, which local dev runs on the host via
+      # `npm run dev` rather than as a `app` container (see README) — the
+      # extra_hosts entry below is what makes that hostname resolve on
+      # Linux (Docker Desktop on Mac/Windows already provides it).
+      GOTRUE_HOOK_SEND_EMAIL_ENABLED: "true"
+      GOTRUE_HOOK_SEND_EMAIL_URI: "http://host.docker.internal:3000/api/auth/send-email-hook"
+      GOTRUE_HOOK_SEND_EMAIL_SECRETS: ${GOTRUE_HOOK_SEND_EMAIL_SECRETS}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${GOTRUE_PORT}:9999"
     healthcheck:
