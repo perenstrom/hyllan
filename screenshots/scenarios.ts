@@ -64,6 +64,17 @@ export const SCENARIOS: Scenario[] = [
   { name: "signed-out-home", route: "/" },
   { name: "login", route: "/login" },
   { name: "signup", route: "/signup" },
+  { name: "forgot-password", route: "/forgot-password" },
+  // No `seed` — no session cookie gets injected (see capture.spec.ts), the
+  // same "not signed in" state a stale or already-used recovery link lands
+  // on.
+  { name: "reset-password-invalid", route: "/reset-password" },
+  // `seed: []` is enough to get a mock session cookie injected even though
+  // no household/items are needed — the reset-password form only checks
+  // that a session exists (getClaims()), the same thing a real recovery
+  // link's exchange would have produced, without this tool driving that
+  // exchange for real.
+  { name: "reset-password", seed: [], route: "/reset-password" },
 
   { name: "pantry-with-items", seed: DEFAULT_SEED_ITEMS, route: "/" },
   { name: "pantry-empty", seed: [], route: "/" },
