@@ -8,6 +8,7 @@ import type postgres from "postgres";
 
 import * as schema from "@/db/schema";
 import { createHouseholdForUser } from "@/lib/household";
+import { addLocation, listLocations } from "@/lib/locations";
 import { addPantryItem, listPantryItems } from "@/lib/pantry-items";
 import type { AddPantryItemInput } from "@/lib/pantry-items";
 
@@ -79,20 +80,65 @@ export async function findOrCreateAuthUser(
 // duplicates. Returns the resulting items either way, so a caller that
 // needs their ids (e.g. the screenshot tool's edit-item scenario) doesn't
 // have to issue its own follow-up query.
+export async function ensureItemsForHousehold<
+  TQueryResult extends PgQueryResultHKT,
+>(
+  db: Database<TQueryResult>,
+  householdId: string,
+  items: AddPantryItemInput[],
+) {
+  const existing = await listPantryItems(db, householdId);
+  if (existing.length > 0) {
+    return { items: existing, seeded: false as const };
+  }
+
+  for (const item of items) {
+    await addPantryItem(db, householdId, item);
+  }
+  const seededItems = await listPantryItems(db, householdId);
+
+  return { items: seededItems, seeded: true as const };
+}
+
 export async function ensureHouseholdWithItems<
   TQueryResult extends PgQueryResultHKT,
 >(db: Database<TQueryResult>, userId: string, items: AddPantryItemInput[]) {
   const household = await createHouseholdForUser(db, userId);
+  const { items: resultItems, seeded } = await ensureItemsForHousehold(
+    db,
+    household.id,
+    items,
+  );
 
-  const existing = await listPantryItems(db, household.id);
-  if (existing.length > 0) {
-    return { household, items: existing, seeded: false as const };
+  return { household, items: resultItems, seeded };
+}
+
+// Idempotent per household: creates any named location that doesn't
+// already exist (matched case-insensitively via the same rule
+// listLocations' unique index enforces), and returns a name -> id map so a
+// caller building AddPantryItemInput[] (whose locationId field needs a
+// real id, not a name) can look one up. Used by the screenshot tool
+// (screenshots/scenarios.ts) to seed locations before the items that
+// reference them.
+export async function ensureLocations<TQueryResult extends PgQueryResultHKT>(
+  db: Database<TQueryResult>,
+  householdId: string,
+  names: string[],
+): Promise<Record<string, string>> {
+  const existing = await listLocations(db, householdId);
+  const byName = new Map(
+    existing.map((location) => [location.name.toLowerCase(), location]),
+  );
+
+  const result: Record<string, string> = {};
+  for (const name of names) {
+    const found = byName.get(name.toLowerCase());
+    if (found) {
+      result[name] = found.id;
+      continue;
+    }
+    const created = await addLocation(db, householdId, name);
+    result[name] = created.id;
   }
-
-  for (const item of items) {
-    await addPantryItem(db, household.id, item);
-  }
-  const seededItems = await listPantryItems(db, household.id);
-
-  return { household, items: seededItems, seeded: true as const };
+  return result;
 }
