@@ -121,7 +121,7 @@ export function LocationsManager({ locations: initialLocations }: Props) {
                   }))
                 }
                 onBlur={() => handleRenameBlur(location)}
-                className="w-full rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+                className="h-9 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
               />
               <button
                 type="button"
@@ -154,11 +154,11 @@ export function LocationsManager({ locations: initialLocations }: Props) {
             value={newName}
             onChange={(event) => setNewName(event.target.value)}
             placeholder="New location"
-            className="w-full rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="h-9 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
           />
           <button
             type="submit"
-            className="shrink-0 rounded bg-black px-3 py-2 text-sm font-medium text-white dark:bg-zinc-50 dark:text-black"
+            className="h-9 shrink-0 rounded bg-black px-3 text-sm font-medium text-white dark:bg-zinc-50 dark:text-black"
           >
             Add
           </button>

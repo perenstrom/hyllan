@@ -72,7 +72,7 @@ export function ItemForm({
             type="text"
             required
             defaultValue={defaultValues?.name}
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
           />
         </div>
 
@@ -92,7 +92,7 @@ export function ItemForm({
               step="any"
               defaultValue={defaultValues?.quantity ?? "1"}
               required
-              className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+              className="h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
             />
           </div>
 
@@ -107,7 +107,11 @@ export function ItemForm({
               id="unit"
               name="unit"
               defaultValue={defaultValues?.unit ?? "count"}
-              className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+              // w-full: unlike <input>, <select> doesn't reliably stretch
+              // to fill a flex column's cross axis on its own — without
+              // this it sizes to its selected option's content instead,
+              // landing narrower than the Quantity field beside it.
+              className="h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
             >
               {PANTRY_ITEM_UNITS.map((unit) => (
                 <option key={unit} value={unit}>
@@ -132,7 +136,7 @@ export function ItemForm({
             min="0"
             step="any"
             defaultValue={defaultValues?.minimumQuantity ?? ""}
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
           />
           <p className="text-xs text-zinc-500 dark:text-zinc-500">
             Same unit as quantity. Leave blank to turn off low-stock tracking
