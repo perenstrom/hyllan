@@ -11,6 +11,8 @@ import {
   DuplicateLocationNameError,
   renameLocation,
 } from "@/lib/locations";
+import { parseQuantity } from "@/lib/pantry-item";
+import { setPantryItemLocationQuantity } from "@/lib/pantry-items";
 
 export type CreateLocationResult =
   | { ok: true; location: { id: string; name: string } }
@@ -93,4 +95,43 @@ export async function deleteLocationAction(locationId: string): Promise<void> {
   await deleteLocation(db, household.id, locationId);
   revalidatePath("/");
   revalidatePath("/locations");
+}
+
+export type SetStockTakeQuantityResult =
+  { ok: true; quantity: string } | { ok: false; error: string };
+
+// Stock take's per-item correction (PER-265) — called directly from the
+// stock-to-shelf/shelf-to-stock dialogs on each field's blur, same
+// direct-call (not form-bound) shape as createLocation above, since both
+// flows manage their own local state rather than a <form>'s pending state.
+export async function setStockTakeQuantity(
+  itemId: string,
+  locationId: string,
+  rawQuantity: string,
+): Promise<SetStockTakeQuantityResult> {
+  const { claims } = await requireSessionClaims();
+  const household = await getHouseholdForUser(db, claims.sub);
+
+  const quantity = parseQuantity(rawQuantity);
+  if (quantity === null) {
+    return {
+      ok: false,
+      error: "Quantity must be zero or a positive number.",
+    };
+  }
+
+  const updated = await setPantryItemLocationQuantity(
+    db,
+    household.id,
+    itemId,
+    locationId,
+    quantity,
+  );
+  if (!updated) {
+    return { ok: false, error: "Item not found." };
+  }
+
+  revalidatePath("/");
+  revalidatePath("/locations");
+  return { ok: true, quantity };
 }

@@ -5,6 +5,7 @@ const getHouseholdForUserMock = vi.fn();
 const addLocationMock = vi.fn();
 const renameLocationMock = vi.fn();
 const deleteLocationMock = vi.fn();
+const setPantryItemLocationQuantityMock = vi.fn();
 const revalidatePathMock = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -24,14 +25,22 @@ vi.mock("@/lib/locations", () => ({
   DuplicateLocationNameError,
 }));
 
+vi.mock("@/lib/pantry-items", () => ({
+  setPantryItemLocationQuantity: setPantryItemLocationQuantityMock,
+}));
+
 vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
 }));
 
 vi.mock("@/db/client", () => ({ db: {} }));
 
-const { createLocation, deleteLocationAction, renameLocationAction } =
-  await import("./actions");
+const {
+  createLocation,
+  deleteLocationAction,
+  renameLocationAction,
+  setStockTakeQuantity,
+} = await import("./actions");
 
 describe("createLocation", () => {
   beforeEach(() => {
@@ -153,5 +162,61 @@ describe("deleteLocationAction", () => {
     );
     expect(revalidatePathMock).toHaveBeenCalledWith("/");
     expect(revalidatePathMock).toHaveBeenCalledWith("/locations");
+  });
+});
+
+describe("setStockTakeQuantity", () => {
+  beforeEach(() => {
+    getClaimsMock.mockReset();
+    getHouseholdForUserMock.mockReset();
+    setPantryItemLocationQuantityMock.mockReset();
+    revalidatePathMock.mockReset();
+
+    getClaimsMock.mockResolvedValue({ data: { claims: { sub: "user-1" } } });
+    getHouseholdForUserMock.mockResolvedValue({ id: "household-1" });
+  });
+
+  it("sets the item's quantity at the location within the signed-in user's household and revalidates", async () => {
+    setPantryItemLocationQuantityMock.mockResolvedValue({ id: "item-1" });
+
+    const result = await setStockTakeQuantity("item-1", "loc-1", "7");
+
+    expect(setPantryItemLocationQuantityMock).toHaveBeenCalledExactlyOnceWith(
+      {},
+      "household-1",
+      "item-1",
+      "loc-1",
+      "7",
+    );
+    expect(result).toEqual({ ok: true, quantity: "7" });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/locations");
+  });
+
+  it("rejects a malformed quantity without touching the database", async () => {
+    const result = await setStockTakeQuantity("item-1", "loc-1", "-2");
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Quantity must be zero or a positive number.",
+    });
+    expect(setPantryItemLocationQuantityMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts zero", async () => {
+    setPantryItemLocationQuantityMock.mockResolvedValue({ id: "item-1" });
+
+    const result = await setStockTakeQuantity("item-1", "loc-1", "0");
+
+    expect(result).toEqual({ ok: true, quantity: "0" });
+  });
+
+  it("returns an error when the item doesn't belong to the household", async () => {
+    setPantryItemLocationQuantityMock.mockResolvedValue(undefined);
+
+    const result = await setStockTakeQuantity("item-1", "loc-1", "7");
+
+    expect(result).toEqual({ ok: false, error: "Item not found." });
+    expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 });

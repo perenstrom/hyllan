@@ -7,6 +7,8 @@ import {
   isDefaultLocationFilter,
   isMultiLocation,
   normalizeLocationName,
+  pantryItemsAtLocation,
+  quantityAtLocation,
   UNASSIGNED_KEY,
   visibleActiveBuckets,
   type PantryItemBucket,
@@ -145,5 +147,76 @@ describe("isDefaultLocationFilter", () => {
 
   it("is false once anything is hidden", () => {
     expect(isDefaultLocationFilter(new Set([UNASSIGNED_KEY]))).toBe(false);
+  });
+});
+
+describe("pantryItemsAtLocation", () => {
+  type Item = { id: string; name: string; buckets: PantryItemBucket[] };
+
+  function item(overrides: Partial<Item> = {}): Item {
+    return { id: "item-1", name: "Rice", buckets: [], ...overrides };
+  }
+
+  it("keeps only items with a positive quantity at the given location", () => {
+    const rice = item({
+      id: "rice",
+      name: "Rice",
+      buckets: [bucket({ locationId: PANTRY_LOCATION_ID, quantity: "2" })],
+    });
+    const zeroed = item({
+      id: "zeroed",
+      name: "Beans",
+      buckets: [bucket({ locationId: PANTRY_LOCATION_ID, quantity: "0" })],
+    });
+    const elsewhere = item({
+      id: "elsewhere",
+      name: "Oats",
+      buckets: [bucket({ locationId: GARAGE_LOCATION_ID, quantity: "5" })],
+    });
+
+    expect(
+      pantryItemsAtLocation([rice, zeroed, elsewhere], PANTRY_LOCATION_ID),
+    ).toEqual([rice]);
+  });
+
+  it("sorts the result alphabetically by name, case-insensitively", () => {
+    const rice = item({
+      id: "rice",
+      name: "rice",
+      buckets: [bucket({ locationId: PANTRY_LOCATION_ID, quantity: "2" })],
+    });
+    const beans = item({
+      id: "beans",
+      name: "Beans",
+      buckets: [bucket({ locationId: PANTRY_LOCATION_ID, quantity: "1" })],
+    });
+
+    expect(
+      pantryItemsAtLocation([rice, beans], PANTRY_LOCATION_ID).map(
+        (entry) => entry.id,
+      ),
+    ).toEqual(["beans", "rice"]);
+  });
+
+  it("returns an empty list when nothing at the location is positive", () => {
+    const rice = item({
+      buckets: [bucket({ locationId: PANTRY_LOCATION_ID, quantity: "0" })],
+    });
+
+    expect(pantryItemsAtLocation([rice], PANTRY_LOCATION_ID)).toEqual([]);
+  });
+});
+
+describe("quantityAtLocation", () => {
+  it("returns the bucket's quantity when one exists for the location", () => {
+    const buckets = [bucket({ locationId: PANTRY_LOCATION_ID, quantity: "3" })];
+
+    expect(quantityAtLocation(buckets, PANTRY_LOCATION_ID)).toBe("3");
+  });
+
+  it("returns zero when the item has no bucket at that location", () => {
+    const buckets = [bucket({ locationId: GARAGE_LOCATION_ID, quantity: "3" })];
+
+    expect(quantityAtLocation(buckets, PANTRY_LOCATION_ID)).toBe("0");
   });
 });

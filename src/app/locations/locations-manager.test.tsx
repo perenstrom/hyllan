@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createLocationMock = vi.fn();
 const renameLocationActionMock = vi.fn();
 const deleteLocationActionMock = vi.fn();
+const setStockTakeQuantityMock = vi.fn();
 
 vi.mock("./actions", () => ({
   createLocation: (...args: unknown[]) => createLocationMock(...args),
@@ -11,6 +12,8 @@ vi.mock("./actions", () => ({
     renameLocationActionMock(...args),
   deleteLocationAction: (...args: unknown[]) =>
     deleteLocationActionMock(...args),
+  setStockTakeQuantity: (...args: unknown[]) =>
+    setStockTakeQuantityMock(...args),
 }));
 
 const { LocationsManager } = await import("./locations-manager");
@@ -26,13 +29,13 @@ describe("LocationsManager", () => {
   });
 
   it("shows a message when there are no locations yet", () => {
-    render(<LocationsManager locations={[]} />);
+    render(<LocationsManager locations={[]} items={[]} />);
 
     expect(screen.getByText("No locations yet.")).toBeInTheDocument();
   });
 
   it("lists each location with a rename input and a delete button", () => {
-    render(<LocationsManager locations={[PANTRY, FREEZER]} />);
+    render(<LocationsManager locations={[PANTRY, FREEZER]} items={[]} />);
 
     expect(screen.getByLabelText("Rename Pantry")).toHaveValue("Pantry");
     expect(screen.getByLabelText("Rename Freezer")).toHaveValue("Freezer");
@@ -46,7 +49,7 @@ describe("LocationsManager", () => {
       ok: true,
       location: { id: PANTRY.id, name: "Kitchen pantry" },
     });
-    render(<LocationsManager locations={[PANTRY]} />);
+    render(<LocationsManager locations={[PANTRY]} items={[]} />);
 
     const input = screen.getByLabelText("Rename Pantry");
     fireEvent.change(input, { target: { value: "Kitchen pantry" } });
@@ -62,7 +65,7 @@ describe("LocationsManager", () => {
   });
 
   it("does not call the server action when the name is unchanged", () => {
-    render(<LocationsManager locations={[PANTRY]} />);
+    render(<LocationsManager locations={[PANTRY]} items={[]} />);
 
     const input = screen.getByLabelText("Rename Pantry");
     fireEvent.blur(input);
@@ -75,7 +78,7 @@ describe("LocationsManager", () => {
       ok: false,
       error: "You already have a location with that name.",
     });
-    render(<LocationsManager locations={[PANTRY, FREEZER]} />);
+    render(<LocationsManager locations={[PANTRY, FREEZER]} items={[]} />);
 
     const input = screen.getByLabelText("Rename Pantry");
     fireEvent.change(input, { target: { value: "Freezer" } });
@@ -88,7 +91,7 @@ describe("LocationsManager", () => {
   });
 
   it("removes the location from the list when deleted", async () => {
-    render(<LocationsManager locations={[PANTRY, FREEZER]} />);
+    render(<LocationsManager locations={[PANTRY, FREEZER]} items={[]} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Delete Pantry" }));
 
@@ -102,7 +105,7 @@ describe("LocationsManager", () => {
       ok: true,
       location: { id: "33333333-3333-3333-3333-333333333333", name: "Garage" },
     });
-    render(<LocationsManager locations={[]} />);
+    render(<LocationsManager locations={[]} items={[]} />);
 
     fireEvent.change(screen.getByLabelText("New location"), {
       target: { value: "Garage" },
@@ -121,7 +124,7 @@ describe("LocationsManager", () => {
       ok: false,
       error: "You already have a location with that name.",
     });
-    render(<LocationsManager locations={[]} />);
+    render(<LocationsManager locations={[]} items={[]} />);
 
     fireEvent.change(screen.getByLabelText("New location"), {
       target: { value: "Pantry" },
@@ -137,10 +140,19 @@ describe("LocationsManager", () => {
   });
 
   it("does not submit a blank new-location name", () => {
-    render(<LocationsManager locations={[]} />);
+    render(<LocationsManager locations={[]} items={[]} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
     expect(createLocationMock).not.toHaveBeenCalled();
+  });
+
+  it("opens a stock take for the clicked location", () => {
+    render(<LocationsManager locations={[PANTRY, FREEZER]} items={[]} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Stock take" })[0]);
+
+    expect(screen.getByText("Start a stock take")).toBeInTheDocument();
+    expect(screen.getAllByText("Pantry").length).toBeGreaterThan(0);
   });
 });

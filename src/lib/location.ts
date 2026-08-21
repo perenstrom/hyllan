@@ -77,6 +77,36 @@ export function isDefaultLocationFilter(
   return hiddenKeys.size === 0;
 }
 
+// Stock take's stock-to-shelf walkthrough list (CONTEXT.md "Stock take",
+// PER-265): every item with a positive recorded quantity at `locationId`,
+// alphabetical by name — snapshot this once when a walkthrough starts, since
+// the list itself must stay fixed for the rest of the pass.
+export function pantryItemsAtLocation<
+  T extends { name: string; buckets: PantryItemBucket[] },
+>(items: T[], locationId: string): T[] {
+  return items
+    .filter((item) => {
+      const bucket = item.buckets.find(
+        (candidate) => candidate.locationId === locationId,
+      );
+      return bucket !== undefined && Number(bucket.quantity) > 0;
+    })
+    .sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "accent" }),
+    );
+}
+
+// An item's recorded quantity at one Location, or "0" if it has no bucket
+// there yet — shelf-to-stock's "0 if none" prefill (PER-265).
+export function quantityAtLocation(
+  buckets: Pick<PantryItemBucket, "locationId" | "quantity">[],
+  locationId: string,
+): string {
+  return (
+    buckets.find((bucket) => bucket.locationId === locationId)?.quantity ?? "0"
+  );
+}
+
 // An item's displayed total (CONTEXT.md "Quantity") — the sum of every
 // bucket it holds, shared by the server (pantry-items.ts) and the client's
 // optimistic-update path (signed-in-home.tsx) so both compute it the same
