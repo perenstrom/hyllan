@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PER-265 — Taking stock (throwaway prototype)</title>
+<style>
+  :root {
+    --bg: #faf8f4;
+    --panel: #ffffff;
+    --modal: #fffdf8;
+    --ink: #2c2a25;
+    --muted: #6b675e;
+    --line: #e4e0d6;
+    --accent: #3f6b4a;
+    --accent-ink: #ffffff;
+    --warn-bg: #fbeee0;
+    --warn-ink: #7a4a12;
+    --done: #8a8677;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); margin: 0 0 24px; }
+  .intro {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 32px;
+  }
+  .intro p { margin: 0 0 12px; }
+  .intro p:last-child { margin-bottom: 0; }
+  .intro .assumption {
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 0.92rem;
+  }
+  h2 { font-size: 1.1rem; margin: 0 0 12px; }
+  section { margin-bottom: 32px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px 24px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .total { font-weight: 600; }
+  button {
+    font: inherit;
+    cursor: pointer;
+    border-radius: 7px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--ink);
+    padding: 7px 14px;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.primary:hover:not(:disabled) { opacity: 0.9; }
+  button.ghost { background: transparent; }
+  button.close-x { border: none; background: transparent; font-size: 1.1rem; padding: 4px 8px; color: var(--muted); }
+  input[type="number"], input[type="text"], select {
+    font: inherit;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--panel);
+    color: var(--ink);
+  }
+  input[type="number"] { width: 100px; }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+  .field-label { color: var(--muted); font-size: 0.85rem; }
+  .badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--line);
+    color: var(--muted);
+  }
+  .badge.phase { background: #e4efe7; color: var(--accent); }
+  .item-name { font-weight: 600; }
+  .item-meta { color: var(--muted); font-size: 0.85rem; }
+  .modal {
+    background: var(--modal);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 0;
+    overflow: hidden;
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .modal-body { padding: 24px 28px; }
+  .modal-body h3 { margin: 4px 0 16px; font-size: 1.3rem; }
+  .item-unit { margin: -10px 0 16px; }
+  .item-unit.below-field { margin: 8px 0 16px; }
+  .qty-stepper { display: flex; align-items: stretch; gap: 10px; width: 100%; }
+  .qty-stepper button {
+    flex: 0 0 64px;
+    padding: 0;
+    font-size: 1.9rem;
+    line-height: 1;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .qty-stepper button:active:not(:disabled) { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .qty-stepper input[type="number"] {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    text-align: center;
+    font-size: 1.7rem;
+    font-variant-numeric: tabular-nums;
+    padding: 10px 4px;
+    -moz-appearance: textfield;
+  }
+  .qty-stepper input[type="number"]::-webkit-inner-spin-button,
+  .qty-stepper input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .qty-stepper button, .qty-stepper input[type="number"] { height: 64px; }
+  .nav-row { display: flex; gap: 10px; width: 100%; margin-top: 16px; }
+  .nav-row button { flex: 1 1 0; height: 54px; font-size: 1rem; }
+  .action-row { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 16px; }
+  .action-row button { width: 100%; height: 54px; font-size: 1rem; }
+  .modal-body select { width: 100%; height: 50px; font-size: 1.05rem; padding: 8px 12px; }
+  .log { list-style: none; margin: 0; padding: 0; font-size: 0.87rem; }
+  .log li { padding: 7px 0; border-bottom: 1px solid var(--line); color: var(--ink); }
+  .log li:first-child { color: var(--ink); font-weight: 600; }
+  .log li:last-child { border-bottom: none; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tabs button { border-radius: 999px; }
+  .tabs button.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .scenario-desc { color: var(--muted); margin-bottom: 6px; }
+  .scenario-watch {
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.88rem;
+    margin: 14px 0;
+  }
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .steps li { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+  .steps .step-btn { min-width: 380px; text-align: left; }
+  .steps .step-btn.done { border-color: var(--done); color: var(--done); }
+  .steps .check { color: var(--accent); font-weight: 700; width: 18px; }
+  small.hint { color: var(--muted); }
+
+  /* Below 640px, matches the real app's inventory view (signed-in-home.tsx):
+     card chrome (border, border-radius) and the page's own side padding
+     drop out so content runs edge-to-edge instead of floating as a card. */
+  @media (max-width: 639px) {
+    .wrap { padding-left: 0; padding-right: 0; }
+    h1, .subtitle, h2 { padding-left: 12px; padding-right: 12px; }
+    .intro, .panel, .modal { border: none; border-radius: 0; }
+    .intro, .panel, .modal-header, .modal-body { padding-left: 12px; padding-right: 12px; }
+    section { margin-bottom: 24px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Taking stock</h1>
+  <p class="subtitle">PER-265 — throwaway prototype, not production code</p>
+
+  <div class="intro">
+    <p><strong>Question this demo tests:</strong> stock-to-shelf and shelf-to-stock are two separate, independently-started flows for a Location — not two phases of one pass. <strong>Stock-to-shelf</strong> is a full-size, one-item-at-a-time walkthrough of every pantry item currently nonzero at the Location, alphabetical by name — editing a field <strong>sets an absolute value and saves immediately</strong>, leaving it unchanged is an implicit confirmation. <strong>Shelf-to-stock</strong> is a standalone lookup: pick any existing pantry item in the household — whether or not it's currently tracked at this Location — see its current quantity here, and adjust it. Both are stateless: <strong>closing either at any point ends it immediately</strong>; edits already made are already saved; nothing forces reaching the end.</p>
+    <p>Grounded in <a href="../adr/0006-stock-take-per-location-no-move-primitive.md">ADR 0006</a> and <a href="../../CONTEXT.md">CONTEXT.md</a>: a correction never touches that item's rows at other Locations, and never creates a new pantry item.</p>
+  </div>
+
+  <section>
+    <h2>Household's pantry items (ground truth)</h2>
+    <div class="panel">
+      <table id="catalog-table"></table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Stock take</h2>
+    <div id="session-panel"></div>
+  </section>
+
+  <section>
+    <h2>What just happened</h2>
+    <div class="panel">
+      <ul class="log" id="log-panel"></ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>Guided walkthroughs</h2>
+    <div class="panel">
+      <div class="tabs" id="tabs"></div>
+      <div id="scenario-body"></div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  // ---------------------------------------------------------------------
+  // Pure model — no DOM in here. This is the part worth lifting into the
+  // real codebase once the question above is answered.
+  // ---------------------------------------------------------------------
+  const StockTakeModel = (() => {
+    function initialState() {
+      return {
+        catalog: {
+          rice:     { id: 'rice',     name: 'Rice',        unit: 'kg',    byLocation: { pantry: 3 },            unassigned: 0 },
+          pasta:    { id: 'pasta',    name: 'Pasta',       unit: 'box',   byLocation: { pantry: 5 },            unassigned: 0 },
+          beans:    { id: 'beans',    name: 'Beans',       unit: 'count', byLocation: { pantry: 2 },            unassigned: 1 },
+          oliveOil: { id: 'oliveOil', name: 'Olive oil',   unit: 'l',     byLocation: { garage: 1 },            unassigned: 0 },
+          peas:     { id: 'peas',     name: 'Frozen peas', unit: 'bag',   byLocation: { garage: 2 },            unassigned: 0 },
+        },
+        locations: {
+          pantry: { id: 'pantry', name: 'Pantry' },
+          garage: { id: 'garage', name: 'Garage fridge' },
+        },
+        session: null,
+        log: ['Ready. Pick a Location and start a stock take.'],
+      };
+    }
+
+    function total(item) {
+      return Object.values(item.byLocation).reduce((a, b) => a + b, 0) + item.unassigned;
+    }
+
+    // Items with a nonzero recorded quantity at a Location, alphabetical — the
+    // walkthrough's item order. Snapshotted once, at session start.
+    function nonzeroItemIdsAt(catalog, locationId) {
+      return Object.values(catalog)
+        .filter((item) => (item.byLocation[locationId] ?? 0) > 0)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((item) => item.id);
+    }
+
+    function reducer(state, action) {
+      const withLog = (msg) => [msg, ...state.log].slice(0, 10);
+
+      switch (action.type) {
+        case 'RESET':
+          return initialState();
+
+        // Stock-to-shelf: a systematic pass over every item already
+        // recorded at this Location.
+        case 'START_WALKTHROUGH': {
+          const location = state.locations[action.locationId];
+          const itemIds = nonzeroItemIdsAt(state.catalog, action.locationId);
+          return {
+            ...state,
+            session: { locationId: action.locationId, flow: 'walkthrough', itemIds, index: 0 },
+            log: withLog(
+              `Started walking recorded items at ${location.name}. ${itemIds.length} item(s) to go through.`
+            ),
+          };
+        }
+
+        // Shelf-to-stock: a standalone lookup, independent of the
+        // walkthrough — pick any existing item, see/adjust its count here.
+        case 'START_LOOKUP': {
+          const location = state.locations[action.locationId];
+          return {
+            ...state,
+            session: { locationId: action.locationId, flow: 'lookup' },
+            log: withLog(`Started looking up items at ${location.name}.`),
+          };
+        }
+
+        // Sets one item's quantity at the session's Location to an absolute
+        // value and applies it to the catalog immediately — there is no
+        // draft and nothing pending on Finish/Close.
+        case 'SET_QUANTITY': {
+          if (!state.session) {
+            return { ...state, log: withLog('No active stock take — start one first.') };
+          }
+          if (!(action.itemId in state.catalog)) {
+            return { ...state, log: withLog('Unknown item — nothing saved.') };
+          }
+          if (typeof action.qty !== 'number' || Number.isNaN(action.qty) || action.qty < 0) {
+            return { ...state, log: withLog(`"${action.qty}" isn't a valid quantity — it must be zero or more.`) };
+          }
+          const { locationId } = state.session;
+          const item = state.catalog[action.itemId];
+          const before = item.byLocation[locationId];
+          const catalog = {
+            ...state.catalog,
+            [action.itemId]: { ...item, byLocation: { ...item.byLocation, [locationId]: action.qty } },
+          };
+          return {
+            ...state,
+            catalog,
+            log: withLog(
+              `Saved ${item.name} at ${action.qty} ${item.unit} for ${state.locations[locationId].name} (was ${before ?? '—'}). Applied immediately.`
+            ),
+          };
+        }
+
+        case 'NEXT': {
+          if (!state.session || state.session.flow !== 'walkthrough') return state;
+          const { index, itemIds } = state.session;
+          if (index >= itemIds.length - 1) return state;
+          return { ...state, session: { ...state.session, index: index + 1 }, log: withLog('Moved to the next item.') };
+        }
+
+        case 'PREVIOUS': {
+          if (!state.session || state.session.flow !== 'walkthrough' || state.session.index === 0) return state;
+          return { ...state, session: { ...state.session, index: state.session.index - 1 }, log: withLog('Moved to the previous item.') };
+        }
+
+        case 'CLOSE_SESSION': {
+          if (!state.session) return { ...state, log: withLog('No session open.') };
+          const location = state.locations[state.session.locationId];
+          return {
+            ...state,
+            session: null,
+            log: withLog(`Closed the stock take at ${location.name}. Every edit you made is already saved — nothing to undo.`),
+          };
+        }
+
+        default:
+          return state;
+      }
+    }
+
+    return { initialState, reducer, total, nonzeroItemIdsAt };
+  })();
+
+  // ---------------------------------------------------------------------
+  // Page shell — everything below is throwaway UI over the pure model.
+  // ---------------------------------------------------------------------
+  let state = StockTakeModel.initialState();
+
+  function dispatch(action) {
+    state = StockTakeModel.reducer(state, action);
+    render();
+  }
+
+  function fmt(n) {
+    return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100);
+  }
+
+  // Tap increment for the +/- stepper — whole units for count-like units,
+  // finer steps for weight/volume so a single tap doesn't overshoot.
+  const STEP_BY_UNIT = { kg: 0.5, l: 0.1, g: 50, ml: 50 };
+  function stepFor(unit) {
+    return STEP_BY_UNIT[unit] ?? 1;
+  }
+
+  // Nudges a stepper's number input by one step, clamped at zero (Quantity
+  // is never negative). Reads/writes the input directly rather than
+  // dispatching, so it composes with whichever save timing the caller uses
+  // (immediate, or deferred to Next/Previous/Close like the walkthrough).
+  function nudgeQtyInput(inputId, unit, direction) {
+    const input = document.getElementById(inputId);
+    const current = parseFloat(input.value);
+    const base = Number.isNaN(current) ? 0 : current;
+    const next = Math.max(0, Math.round((base + direction * stepFor(unit)) * 100) / 100);
+    input.value = fmt(next);
+  }
+
+  function renderCatalog() {
+    const locationIds = Object.keys(state.locations);
+    const head =
+      '<tr><th>Item</th><th>Unit</th>' +
+      locationIds.map((id) => `<th class="num">${state.locations[id].name}</th>`).join('') +
+      '<th class="num">Unassigned</th><th class="num">Total</th></tr>';
+    const rows = Object.values(state.catalog)
+      .map((item) => {
+        const cells = locationIds
+          .map((id) => `<td class="num">${id in item.byLocation ? fmt(item.byLocation[id]) : '<span class="item-meta">—</span>'}</td>`)
+          .join('');
+        return `<tr><td class="item-name">${item.name}</td><td>${item.unit}</td>${cells}<td class="num">${fmt(
+          item.unassigned
+        )}</td><td class="num total">${fmt(StockTakeModel.total(item))}</td></tr>`;
+      })
+      .join('');
+    document.getElementById('catalog-table').innerHTML = head + rows;
+  }
+
+  // Reads the live-edited quantity field, and if it differs from what's
+  // currently on the catalog, saves it before moving — mirrors "editing
+  // saves immediately; leaving it unchanged is an implicit confirmation."
+  function saveWalkthroughFieldIfChanged() {
+    const session = state.session;
+    const itemId = session.itemIds[session.index];
+    const input = document.getElementById('walk-qty-input');
+    const val = parseFloat(input.value);
+    const current = state.catalog[itemId].byLocation[session.locationId] ?? 0;
+    if (!Number.isNaN(val) && val !== current) {
+      dispatch({ type: 'SET_QUANTITY', itemId, qty: val });
+    }
+  }
+
+  function renderSession() {
+    const panel = document.getElementById('session-panel');
+    const session = state.session;
+
+    if (!session) {
+      const options = Object.values(state.locations)
+        .map((l) => `<option value="${l.id}">${l.name}</option>`)
+        .join('');
+      panel.innerHTML = `
+        <div class="panel">
+          <p class="field-label">No stock take open.</p>
+          <div class="row">
+            <span class="field-label">Location</span>
+            <select id="location-select">${options}</select>
+          </div>
+          <div class="action-row">
+            <button class="primary" id="start-walkthrough-btn">Walk through recorded items</button>
+            <button id="start-lookup-btn">Look up an item</button>
+          </div>
+        </div>
+      `;
+      document.getElementById('start-walkthrough-btn').addEventListener('click', () => {
+        dispatch({ type: 'START_WALKTHROUGH', locationId: document.getElementById('location-select').value });
+      });
+      document.getElementById('start-lookup-btn').addEventListener('click', () => {
+        dispatch({ type: 'START_LOOKUP', locationId: document.getElementById('location-select').value });
+      });
+      return;
+    }
+
+    const location = state.locations[session.locationId];
+
+    if (session.flow === 'walkthrough') {
+      if (session.itemIds.length === 0) {
+        panel.innerHTML = `
+          <div class="modal">
+            <div class="modal-header">
+              <strong>Stock take — ${location.name}</strong>
+              <button class="close-x" id="close-btn" title="Close">✕</button>
+            </div>
+            <div class="modal-body">
+              <p class="item-meta">Nothing is currently recorded at ${location.name} yet — there's nothing to walk through. Use "Look up an item" instead to add something you see here.</p>
+              <div class="action-row"><button class="primary" id="close-btn-2">Close</button></div>
+            </div>
+          </div>
+        `;
+        document.getElementById('close-btn').addEventListener('click', () => dispatch({ type: 'CLOSE_SESSION' }));
+        document.getElementById('close-btn-2').addEventListener('click', () => dispatch({ type: 'CLOSE_SESSION' }));
+        return;
+      }
+
+      const itemId = session.itemIds[session.index];
+      const item = state.catalog[itemId];
+      const qty = item.byLocation[session.locationId] ?? 0;
+      const isLast = session.index === session.itemIds.length - 1;
+      panel.innerHTML = `
+        <div class="modal">
+          <div class="modal-header">
+            <div class="row" style="margin:0">
+              <strong>Stock take — ${location.name}</strong>
+              <span class="badge phase">Item ${session.index + 1} of ${session.itemIds.length}</span>
+            </div>
+            <button class="close-x" id="close-btn" title="Close">✕</button>
+          </div>
+          <div class="modal-body">
+            <h3>${item.name}</h3>
+            <p class="field-label item-unit">${item.unit}</p>
+            <div class="qty-stepper">
+              <button type="button" id="walk-minus-btn" aria-label="Decrease">−</button>
+              <input type="number" step="any" min="0" id="walk-qty-input" value="${fmt(qty)}" />
+              <button type="button" id="walk-plus-btn" aria-label="Increase">+</button>
+            </div>
+            <div class="nav-row">
+              <button id="prev-btn" ${session.index === 0 ? 'disabled' : ''}>← Previous</button>
+              <button class="primary" id="next-btn">${isLast ? 'Finish →' : 'Next →'}</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.getElementById('walk-minus-btn').addEventListener('click', () => nudgeQtyInput('walk-qty-input', item.unit, -1));
+      document.getElementById('walk-plus-btn').addEventListener('click', () => nudgeQtyInput('walk-qty-input', item.unit, 1));
+      document.getElementById('close-btn').addEventListener('click', () => {
+        saveWalkthroughFieldIfChanged();
+        dispatch({ type: 'CLOSE_SESSION' });
+      });
+      document.getElementById('prev-btn').addEventListener('click', () => {
+        saveWalkthroughFieldIfChanged();
+        dispatch({ type: 'PREVIOUS' });
+      });
+      document.getElementById('next-btn').addEventListener('click', () => {
+        saveWalkthroughFieldIfChanged();
+        if (isLast) {
+          dispatch({ type: 'CLOSE_SESSION' });
+        } else {
+          dispatch({ type: 'NEXT' });
+        }
+      });
+      return;
+    }
+
+    // flow === 'lookup' — shelf-to-stock: pick any household item, see/adjust
+    // its count at this Location. Unlike the walkthrough, nothing is
+    // filtered out — you can look up an item already handled by a
+    // walkthrough pass just as easily as one that's never been here. Starts
+    // (and resets after every Save) with nothing picked, rather than
+    // defaulting to the alphabetically-first item — picking is always an
+    // explicit act, never something that silently happened for you.
+    const allItems = Object.values(state.catalog).sort((a, b) => a.name.localeCompare(b.name));
+    const options = allItems.map((item) => `<option value="${item.id}">${item.name}</option>`).join('');
+    panel.innerHTML = `
+      <div class="modal">
+        <div class="modal-header">
+          <strong>Stock take — ${location.name} — Look up an item</strong>
+          <button class="close-x" id="close-btn" title="Close">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="item-meta">Pick anything you see on the shelf. Only existing pantry items are offered — there's no way to type a brand-new name.</p>
+          <select id="lookup-select">
+            <option value="" selected>Choose an item…</option>
+            ${options}
+          </select>
+          <div id="lookup-fields" style="display:none">
+            <p class="field-label item-unit below-field" id="lookup-unit"></p>
+            <div class="qty-stepper">
+              <button type="button" id="lookup-minus-btn" aria-label="Decrease">−</button>
+              <input type="number" step="any" min="0" id="lookup-qty-input" value="0" />
+              <button type="button" id="lookup-plus-btn" aria-label="Increase">+</button>
+            </div>
+          </div>
+          <div class="action-row">
+            <button class="primary" id="lookup-save-btn" disabled>Save</button>
+            <button id="lookup-done-btn">Done</button>
+          </div>
+        </div>
+      </div>
+    `;
+    const lookupSelect = document.getElementById('lookup-select');
+    const lookupFields = document.getElementById('lookup-fields');
+    const lookupSaveBtn = document.getElementById('lookup-save-btn');
+    const showSelectedItem = () => {
+      if (!lookupSelect.value) {
+        lookupFields.style.display = 'none';
+        lookupSaveBtn.disabled = true;
+        return;
+      }
+      const item = state.catalog[lookupSelect.value];
+      document.getElementById('lookup-unit').textContent = item.unit;
+      document.getElementById('lookup-qty-input').value = fmt(item.byLocation[session.locationId] ?? 0);
+      lookupFields.style.display = '';
+      lookupSaveBtn.disabled = false;
+    };
+    lookupSelect.addEventListener('change', showSelectedItem);
+    document.getElementById('lookup-minus-btn').addEventListener('click', () =>
+      nudgeQtyInput('lookup-qty-input', state.catalog[lookupSelect.value].unit, -1)
+    );
+    document.getElementById('lookup-plus-btn').addEventListener('click', () =>
+      nudgeQtyInput('lookup-qty-input', state.catalog[lookupSelect.value].unit, 1)
+    );
+    lookupSaveBtn.addEventListener('click', () => {
+      const itemId = lookupSelect.value;
+      const qty = parseFloat(document.getElementById('lookup-qty-input').value);
+      dispatch({ type: 'SET_QUANTITY', itemId, qty });
+    });
+    document.getElementById('close-btn').addEventListener('click', () => dispatch({ type: 'CLOSE_SESSION' }));
+    document.getElementById('lookup-done-btn').addEventListener('click', () => dispatch({ type: 'CLOSE_SESSION' }));
+  }
+
+  function renderLog() {
+    document.getElementById('log-panel').innerHTML = state.log.map((line) => `<li>${line}</li>`).join('');
+  }
+
+  function render() {
+    renderCatalog();
+    renderSession();
+    renderLog();
+    renderScenario();
+  }
+
+  // ---------------------------------------------------------------------
+  // Guided walkthroughs
+  // ---------------------------------------------------------------------
+  const scenarios = [
+    {
+      title: 'Stock-to-shelf: happy path',
+      description: 'Walk Pantry alphabetically (Beans, Pasta, Rice): leave some fields untouched, correct one, then reach the end.',
+      watch: 'Pasta updates the moment you move past it — not deferred to any final save. Beans and Rice, left unedited, are untouched. Garage fridge never moves. Reaching Rice (the last item) and clicking Finish just ends the pass — there is no extra step tacked on afterward.',
+      steps: [
+        { label: 'Start the walkthrough at Pantry', run: () => { dispatch({ type: 'RESET' }); dispatch({ type: 'START_WALKTHROUGH', locationId: 'pantry' }); } },
+        { label: 'Beans: leave at 2, click Next', run: () => dispatch({ type: 'NEXT' }) },
+        { label: 'Pasta: only 4 boxes left, save & Next', run: () => { dispatch({ type: 'SET_QUANTITY', itemId: 'pasta', qty: 4 }); dispatch({ type: 'NEXT' }); } },
+        { label: 'Rice: leave at 3, click Finish', run: () => dispatch({ type: 'CLOSE_SESSION' }) },
+      ],
+    },
+    {
+      title: 'Close mid-walkthrough',
+      description: 'Correct the very first item, then close the modal before reaching the rest.',
+      watch: "Beans is saved at 1 immediately. Pasta and Rice stay exactly as they were — the pass has no notion of 'incomplete'; closing just stops it, nothing is rolled back or flagged.",
+      steps: [
+        { label: 'Start the walkthrough at Pantry', run: () => { dispatch({ type: 'RESET' }); dispatch({ type: 'START_WALKTHROUGH', locationId: 'pantry' }); } },
+        { label: 'Beans: correct to 1', run: () => dispatch({ type: 'SET_QUANTITY', itemId: 'beans', qty: 1 }) },
+        { label: 'Close the modal', run: () => dispatch({ type: 'CLOSE_SESSION' }) },
+      ],
+    },
+    {
+      title: 'Shelf-to-stock: found something new',
+      description: "Skip the walkthrough entirely — you spotted Olive oil sitting on the Pantry shelf, and it's currently only recorded at Garage fridge. Look it up directly.",
+      watch: 'This never touches Beans, Pasta or Rice — shelf-to-stock is a completely separate flow, not a continuation of the walkthrough. Olive oil ends up with rows at BOTH Garage fridge (1l, untouched) and Pantry (2l, new) — Total becomes their sum, 3l (ADR 0005). Garage fridge is never touched (ADR 0006).',
+      steps: [
+        { label: 'Look up an item at Pantry', run: () => { dispatch({ type: 'RESET' }); dispatch({ type: 'START_LOOKUP', locationId: 'pantry' }); } },
+        { label: 'Pick Olive oil, set 2 l, Save', run: () => dispatch({ type: 'SET_QUANTITY', itemId: 'oliveOil', qty: 2 }) },
+        { label: 'Done', run: () => dispatch({ type: 'CLOSE_SESSION' }) },
+      ],
+    },
+    {
+      title: 'Shelf-to-stock: quick-correct something already tracked',
+      description: 'Rice is already recorded at Pantry. Correct it via lookup instead of opening the full walkthrough.',
+      watch: "Unlike the add-missing-item picker in the old combined design, shelf-to-stock isn't restricted to items missing from this Location — it can touch anything, including Rice, without walking Beans/Pasta first. That's the actual point of having two separate flows: a full systematic pass, or a quick single-item fix.",
+      steps: [
+        { label: 'Look up an item at Pantry', run: () => { dispatch({ type: 'RESET' }); dispatch({ type: 'START_LOOKUP', locationId: 'pantry' }); } },
+        { label: 'Pick Rice (shows 3 kg), correct to 2.5 kg, Save', run: () => dispatch({ type: 'SET_QUANTITY', itemId: 'rice', qty: 2.5 }) },
+        { label: 'Done', run: () => dispatch({ type: 'CLOSE_SESSION' }) },
+      ],
+    },
+    {
+      title: "Can't create a new item",
+      description: 'Open the lookup picker and look at what it actually offers.',
+      watch: 'Every existing pantry item is listed — Rice, Pasta, Beans, Olive oil, Frozen peas — regardless of whether it\'s already tracked at this Location. There is no free-text field anywhere: a pantry item that has never existed (like "Quinoa") simply cannot be reached from this flow, matching the out-of-scope note on PER-265 that stock take never creates a new pantry item.',
+      steps: [
+        { label: 'Look up an item at Pantry', run: () => { dispatch({ type: 'RESET' }); dispatch({ type: 'START_LOOKUP', locationId: 'pantry' }); } },
+        { label: 'Open the picker and look at the options', run: () => {} },
+      ],
+    },
+    {
+      title: 'Both flows share one catalog',
+      description: 'Correct Beans via the walkthrough, close it, then correct it again via lookup.',
+      watch: "Beans ends at 3 — lookup picks up exactly where the walkthrough left off (1), not some separate stale copy. Stock-to-shelf and shelf-to-stock are different entry points into the same underlying data, not two disconnected mechanisms.",
+      steps: [
+        { label: 'Start the walkthrough at Pantry', run: () => { dispatch({ type: 'RESET' }); dispatch({ type: 'START_WALKTHROUGH', locationId: 'pantry' }); } },
+        { label: 'Beans: correct to 1, Next', run: () => { dispatch({ type: 'SET_QUANTITY', itemId: 'beans', qty: 1 }); dispatch({ type: 'NEXT' }); } },
+        { label: 'Close the walkthrough', run: () => dispatch({ type: 'CLOSE_SESSION' }) },
+        { label: 'Look up Beans, correct to 3, Save', run: () => { dispatch({ type: 'START_LOOKUP', locationId: 'pantry' }); dispatch({ type: 'SET_QUANTITY', itemId: 'beans', qty: 3 }); } },
+        { label: 'Done', run: () => dispatch({ type: 'CLOSE_SESSION' }) },
+      ],
+    },
+  ];
+
+  let activeTab = 0;
+  const stepIndex = scenarios.map(() => 0);
+
+  function renderTabs() {
+    document.getElementById('tabs').innerHTML = scenarios
+      .map((s, i) => `<button class="${i === activeTab ? 'active' : ''}" data-tab="${i}">${s.title}</button>`)
+      .join('');
+    document.querySelectorAll('#tabs button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        activeTab = parseInt(btn.dataset.tab, 10);
+        renderScenario();
+      });
+    });
+  }
+
+  function renderScenario() {
+    const s = scenarios[activeTab];
+    const done = stepIndex[activeTab];
+    const stepsHtml = s.steps
+      .map((step, i) => {
+        const isDone = i < done;
+        const isNext = i === done;
+        return `<li>
+          <span class="check">${isDone ? '✓' : ''}</span>
+          <button class="step-btn ${isDone ? 'done' : ''}" data-step="${i}" ${isNext ? '' : 'disabled'}>${i + 1}. ${step.label}</button>
+        </li>`;
+      })
+      .join('');
+    document.getElementById('scenario-body').innerHTML = `
+      <p class="scenario-desc">${s.description}</p>
+      <ul class="steps">${stepsHtml}</ul>
+      <div class="scenario-watch"><strong>Watch for:</strong> ${s.watch}</div>
+      <button class="ghost" id="restart-scenario">Start this scenario over</button>
+    `;
+    document.querySelectorAll('.step-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const i = parseInt(btn.dataset.step, 10);
+        s.steps[i].run();
+        stepIndex[activeTab] = i + 1;
+        renderScenario();
+      });
+    });
+    document.getElementById('restart-scenario').addEventListener('click', () => {
+      stepIndex[activeTab] = 0;
+      renderScenario();
+    });
+  }
+
+  renderTabs();
+  render();
+</script>
+</body>
+</html>
