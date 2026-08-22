@@ -161,6 +161,70 @@ export const SCENARIOS: Scenario[] = [
   },
   { name: "manage-locations-empty", seed: [], route: "/locations" },
 
+  // Stock take (PER-265): the "start a stock take" picker, then each of its
+  // two independent flows, both reached from the manage-locations page.
+  {
+    name: "start-stock-take",
+    locations: ["Pantry"],
+    seed: (locationIds) => [
+      {
+        name: "Rice",
+        quantity: "2",
+        unit: "kg",
+        locationId: locationIds.Pantry,
+      },
+    ],
+    route: "/locations",
+    interactions: async (page) => {
+      await page.getByRole("button", { name: "Stock take" }).click();
+      await page
+        .getByRole("heading", { name: "Start a stock take" })
+        .waitFor({ state: "visible" });
+    },
+  },
+  {
+    name: "stock-to-shelf-dialog",
+    locations: ["Pantry"],
+    seed: (locationIds) => [
+      {
+        name: "Rice",
+        quantity: "2",
+        unit: "kg",
+        locationId: locationIds.Pantry,
+      },
+    ],
+    route: "/locations",
+    interactions: async (page) => {
+      await page.getByRole("button", { name: "Stock take" }).click();
+      await page
+        .getByRole("button", { name: "Go through everything recorded here" })
+        .click();
+      await page
+        .getByRole("heading", { name: "Stock take: Pantry" })
+        .waitFor({ state: "visible" });
+    },
+  },
+  {
+    name: "shelf-to-stock-dialog",
+    locations: ["Pantry"],
+    seed: (locationIds) => [
+      {
+        name: "Rice",
+        quantity: "2",
+        unit: "kg",
+        locationId: locationIds.Pantry,
+      },
+    ],
+    route: "/locations",
+    interactions: async (page) => {
+      await page.getByRole("button", { name: "Stock take" }).click();
+      await page.getByRole("button", { name: "Look up one item" }).click();
+      await page.getByLabel("Item").click();
+      await page.getByRole("button", { name: "Rice" }).click();
+      await page.getByLabel("Quantity at Pantry").waitFor({ state: "visible" });
+    },
+  },
+
   { name: "account", seed: [], route: "/account" },
 
   {

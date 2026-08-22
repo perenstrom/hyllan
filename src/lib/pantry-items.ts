@@ -4,7 +4,11 @@ import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import * as schema from "@/db/schema";
 import { itemLocations, locations, pantryItems } from "@/db/schema";
 import { isUniqueViolation } from "./db-errors";
-import { locationIdCondition, upsertBucketQuantity } from "./item-locations";
+import {
+  locationIdCondition,
+  setBucketQuantity,
+  upsertBucketQuantity,
+} from "./item-locations";
 import { bucketsTotal, type PantryItemBucket } from "./location";
 import type { PantryItemFormInput, PantryItemUnit } from "./pantry-item";
 import {
@@ -337,6 +341,38 @@ export function decrementPantryItemQuantity<
     locationId,
     decrementQuantity,
   );
+}
+
+// Stock take's correction (CONTEXT.md "Stock take", ADR 0006): sets one
+// (item, location) bucket's quantity directly to an absolute observed
+// value, creating the bucket row if it doesn't exist yet (shelf-to-stock
+// adding an item not yet recorded at this Location), without touching any
+// of the item's other buckets. Returns undefined when the item isn't in
+// this household — same "stale client state" contract as
+// adjustBucketQuantity above.
+export async function setPantryItemLocationQuantity<
+  TQueryResult extends PgQueryResultHKT,
+>(
+  db: Database<TQueryResult>,
+  householdId: string,
+  itemId: string,
+  locationId: string,
+  quantity: string,
+): Promise<PantryItemWithLocations | undefined> {
+  return db.transaction(async (tx) => {
+    const [item] = await tx
+      .select()
+      .from(pantryItems)
+      .where(scopedToItem(householdId, itemId));
+    if (!item) {
+      return undefined;
+    }
+
+    await setBucketQuantity(tx, itemId, locationId, quantity);
+
+    const bucketsByItem = await fetchBucketsByItem(tx, [itemId]);
+    return withLocations(item, bucketsByItem.get(itemId) ?? []);
+  });
 }
 
 export class DuplicatePantryItemNameError extends Error {}

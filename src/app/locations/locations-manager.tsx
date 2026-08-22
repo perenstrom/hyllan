@@ -8,10 +8,13 @@ import {
   deleteLocationAction,
   renameLocationAction,
 } from "./actions";
+import { StockTakeLauncher } from "./stock-take-launcher";
 import type { LocationOption } from "@/lib/location";
+import type { PantryItemWithLocations } from "@/lib/pantry-items";
 
 type Props = {
   locations: LocationOption[];
+  items: PantryItemWithLocations[];
 };
 
 // The dedicated route rename/delete moved to (PER-288, review comment on
@@ -20,8 +23,13 @@ type Props = {
 // its quantity back into every affected item's unassigned bucket (ADR
 // 0005), so unlike DeleteItemDialog (PER-269) there's no data-loss
 // confirmation step to reuse here.
-export function LocationsManager({ locations: initialLocations }: Props) {
+export function LocationsManager({
+  locations: initialLocations,
+  items,
+}: Props) {
   const [locations, setLocations] = useState(initialLocations);
+  const [stockTakeLocation, setStockTakeLocation] =
+    useState<LocationOption | null>(null);
   const [names, setNames] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       initialLocations.map((location) => [location.id, location.name]),
@@ -125,6 +133,13 @@ export function LocationsManager({ locations: initialLocations }: Props) {
               />
               <button
                 type="button"
+                onClick={() => setStockTakeLocation(location)}
+                className="h-9 shrink-0 rounded border border-zinc-300 px-2.5 text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+              >
+                Stock take
+              </button>
+              <button
+                type="button"
                 onClick={() => handleDelete(location)}
                 aria-label={`Delete ${location.name}`}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
@@ -165,6 +180,14 @@ export function LocationsManager({ locations: initialLocations }: Props) {
         </div>
         {createError && <p className="text-sm text-red-600">{createError}</p>}
       </form>
+
+      {stockTakeLocation && (
+        <StockTakeLauncher
+          location={stockTakeLocation}
+          items={items}
+          onClose={() => setStockTakeLocation(null)}
+        />
+      )}
     </div>
   );
 }
