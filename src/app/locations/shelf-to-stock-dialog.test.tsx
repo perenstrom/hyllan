@@ -137,6 +137,41 @@ describe("ShelfToStockDialog", () => {
     expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
   });
 
+  it("keeps the item selected across repeated stepper taps, unlike a blur", async () => {
+    // Echoes back whatever quantity was sent, like the real server action
+    // does — keeps this test's expectations tied to the stepper's own
+    // math rather than an arbitrary mocked value.
+    setStockTakeQuantityMock.mockImplementation(
+      (_itemId: string, _locationId: string, quantity: string) =>
+        Promise.resolve({ ok: true, quantity }),
+    );
+    const flour = itemRow({
+      id: "flour",
+      name: "Flour",
+      unit: "kg",
+      buckets: [],
+    });
+    renderDialog({ items: [flour] });
+
+    selectItem("Flour");
+    const increase = screen.getByRole("button", { name: /increase/i });
+    fireEvent.click(increase);
+
+    await vi.waitFor(() => {
+      expect(setStockTakeQuantityMock).toHaveBeenCalledTimes(1);
+    });
+    // Still selected and editable after one tap — a second tap picks up
+    // where the first left off instead of the field having unmounted.
+    expect(screen.getByRole("spinbutton")).toHaveValue(0.5);
+
+    fireEvent.click(screen.getByRole("button", { name: /increase/i }));
+
+    await vi.waitFor(() => {
+      expect(setStockTakeQuantityMock).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByRole("spinbutton")).toHaveValue(1);
+  });
+
   it("does not save when the field is left unchanged", () => {
     const rice = itemRow({
       id: "rice",

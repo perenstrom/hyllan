@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 
 import { ItemPickerCombobox } from "./item-picker-combobox";
-import { StockTakeDialogHeader } from "./stock-take-dialog-header";
+import {
+  STOCK_TAKE_DIALOG_CLASS,
+  StockTakeDialogHeader,
+} from "./stock-take-dialog-header";
 import { StockTakeQuantityField } from "./stock-take-quantity-field";
 import type { LocationOption } from "@/lib/location";
 import { quantityAtLocation } from "@/lib/location";
@@ -21,7 +24,10 @@ type Props = {
 // quick correction to something already tracked. Saves on blur the same
 // way as the stock-to-shelf walkthrough, then resets to no item selected
 // (never defaulting to the alphabetically-first item) so the next lookup
-// is always a deliberate pick.
+// is always a deliberate pick — but only on a blurred edit, not on a
+// stepper tap: resetting on every tap would unmount the field (it's keyed
+// on the selected item) after the very first nudge, making repeated
+// taps to reach a value impossible.
 export function ShelfToStockDialog({ location, items, onClose }: Props) {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [pickerResetKey, setPickerResetKey] = useState(0);
@@ -46,7 +52,7 @@ export function ShelfToStockDialog({ location, items, onClose }: Props) {
     <dialog
       ref={dialogRef}
       onClose={onClose}
-      className="m-auto w-full max-w-lg rounded-lg border border-zinc-200 bg-white p-6 backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-900"
+      className={`${STOCK_TAKE_DIALOG_CLASS} max-w-lg`}
     >
       <StockTakeDialogHeader
         title={`Look up an item: ${location.name}`}
@@ -91,13 +97,15 @@ export function ShelfToStockDialog({ location, items, onClose }: Props) {
               locationId={location.id}
               unit={selectedItem.unit}
               savedQuantity={currentQuantity(selectedItem)}
-              onSaved={(quantity) => {
+              onSaved={(quantity, source) => {
                 setSavedQuantities((previous) => ({
                   ...previous,
                   [selectedItem.id]: quantity,
                 }));
-                setSelectedItemId(null);
-                setPickerResetKey((key) => key + 1);
+                if (source === "blur") {
+                  setSelectedItemId(null);
+                  setPickerResetKey((key) => key + 1);
+                }
               }}
             />
           </div>

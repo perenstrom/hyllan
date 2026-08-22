@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { StockTakeDialogHeader } from "./stock-take-dialog-header";
+import {
+  STOCK_TAKE_DIALOG_CLASS,
+  StockTakeDialogHeader,
+} from "./stock-take-dialog-header";
 import { StockTakeQuantityField } from "./stock-take-quantity-field";
 import type { LocationOption } from "@/lib/location";
 import { pantryItemsAtLocation } from "@/lib/location";
@@ -51,7 +54,7 @@ export function StockToShelfDialog({ location, items, onClose }: Props) {
     <dialog
       ref={dialogRef}
       onClose={onClose}
-      className="m-auto w-full max-w-lg rounded-lg border border-zinc-200 bg-white p-6 backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-900"
+      className={`${STOCK_TAKE_DIALOG_CLASS} max-w-lg`}
     >
       <StockTakeDialogHeader
         title={`Stock take: ${location.name}`}
