@@ -78,6 +78,15 @@ jobs:
       GOTRUE_API_EXTERNAL_URL: http://localhost:9999
       GOTRUE_DB_PASSWORD: supabase_auth_admin
       GOTRUE_JWT_SECRET: ci-only-secret-do-not-use-in-production
+      # PER-273: GOTRUE_JWT_KEYS is present (not just GOTRUE_JWT_SECRET) as
+      # soon as compose.yaml references it, so it must always be a valid JWK
+      # array here too -- GoTrue fatal-errors and crash-loops on a present
+      # but empty GOTRUE_JWT_KEYS (confirmed: "converting '' to type
+      # conf.JwtKeysDecoder", auth container unhealthy). CI-only keypair,
+      # wraps the GOTRUE_JWT_SECRET above as a verify-only HS256 entry per
+      # the same shape as .env.example's dev keys.
+      GOTRUE_JWT_KEYS: '[{"kty":"oct","k":"Y2ktb25seS1zZWNyZXQtZG8tbm90LXVzZS1pbi1wcm9kdWN0aW9u","kid":"ci-legacy-hs256","key_ops":["verify"],"alg":"HS256"},{"kty":"EC","crv":"P-256","x":"Ui0YKfI5T8SHm59xaPAP8tF9CdpmYWNozc4ajCtW5ew","y":"QcNBzFdl-FDLhQkny3LOyUEraXfq141f8KrX2P9X4C8","d":"_ggfDZ9IZU4Xetj-s3e1mqMPozdYuiH62CcxZz9KPXA","kid":"ci-es256-1","key_ops":["sign","verify"],"alg":"ES256"}]'
+      GOTRUE_JWT_KEY_ID: ci-es256-1
       NEXT_PUBLIC_SUPABASE_URL: http://localhost:3000
       NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-unused-by-standalone-gotrue
     steps:
@@ -123,6 +132,11 @@ jobs:
       GOTRUE_API_EXTERNAL_URL: http://localhost:9999
       GOTRUE_DB_PASSWORD: supabase_auth_admin
       GOTRUE_JWT_SECRET: ci-only-secret-do-not-use-in-production
+      # PER-273: see e2e job's identical comment above -- GOTRUE_JWT_KEYS
+      # must be a valid JWK array whenever it's present at all, or GoTrue
+      # crash-loops. Same CI-only keypair as the e2e job.
+      GOTRUE_JWT_KEYS: '[{"kty":"oct","k":"Y2ktb25seS1zZWNyZXQtZG8tbm90LXVzZS1pbi1wcm9kdWN0aW9u","kid":"ci-legacy-hs256","key_ops":["verify"],"alg":"HS256"},{"kty":"EC","crv":"P-256","x":"Ui0YKfI5T8SHm59xaPAP8tF9CdpmYWNozc4ajCtW5ew","y":"QcNBzFdl-FDLhQkny3LOyUEraXfq141f8KrX2P9X4C8","d":"_ggfDZ9IZU4Xetj-s3e1mqMPozdYuiH62CcxZz9KPXA","kid":"ci-es256-1","key_ops":["sign","verify"],"alg":"ES256"}]'
+      GOTRUE_JWT_KEY_ID: ci-es256-1
       NEXT_PUBLIC_SUPABASE_URL: http://localhost:3000
       NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-unused-by-standalone-gotrue
     steps:
