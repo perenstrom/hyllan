@@ -74,8 +74,9 @@ Each service has a Compose `healthcheck`; `app` only starts serving once `db` an
 ```bash
 cp .env.example .env
 # Edit .env: DOMAIN, AUTH_DOMAIN, GOTRUE_SITE_URL, GOTRUE_API_EXTERNAL_URL,
-# GOTRUE_JWT_SECRET, POSTGRES_PASSWORD, and (for off-server backups)
-# BACKUP_RCLONE_REMOTE + RCLONE_CONFIG_<REMOTE>_* — see .env.example.
+# GOTRUE_JWT_SECRET, GOTRUE_JWT_KEYS, GOTRUE_JWT_KEY_ID, POSTGRES_PASSWORD,
+# and (for off-server backups) BACKUP_RCLONE_REMOTE +
+# RCLONE_CONFIG_<REMOTE>_* — see .env.example.
 docker compose --profile production up -d --build
 npm run db:migrate
 ```
@@ -91,6 +92,15 @@ pg_restore -h <host> -U postgres -d hyllan --clean --if-exists hyllan-<timestamp
 ```
 
 Deployment config here is reviewed manually rather than covered by automated tests, per the project's testing strategy (`docs/research/testing-observability-strategy.md`).
+
+**How this project's own staging/production actually deploy (Coolify):** the bare-VPS path above is the generic path for self-hosters not using Coolify (see `compose.coolify.yaml`'s own header comment); this project's real staging and production instances run on Coolify instead, from `compose.staging.yaml`/`compose.coolify.yaml`, each redeployed by hitting Coolify's `POST /api/v1/deploy` API rather than by hand.
+
+- **Staging** redeploys automatically: `.github/workflows/ci.yml`'s `deploy-staging` job runs on every push to `main` that changes non-doc files, once the `build` and `e2e` jobs are both green, and triggers Coolify's staging app (`COOLIFY_STAGING_APP_UUID`).
+- **Production** is manual only: `.github/workflows/deploy-production.yml`, run via `workflow_dispatch` from the Actions tab. It refuses to run against anything but `main`, re-checks that `build`/`e2e` are green on `main`'s current HEAD (not just at merge time), then triggers Coolify's production app (`COOLIFY_PROD_APP_UUID`) and polls the resulting deployment for up to 10 minutes until it reports `finished`. Pass `force: true` to force a clean `--no-cache` rebuild instead of reusing the commit's existing image.
+
+Both jobs authenticate to Coolify via `vars.COOLIFY_URL` plus an environment-scoped `secrets.COOLIFY_STAGING_TOKEN`/`COOLIFY_PROD_TOKEN` (GitHub Environments `staging`/`production`) — configured in the repo's own Settings, not in `.env`.
+
+A consequence worth knowing: merging a PR to `main` redeploys staging automatically (once CI passes) but never touches production — reaching production always requires someone to manually run "Deploy to production" from the Actions tab afterward.
 
 ## Observability
 

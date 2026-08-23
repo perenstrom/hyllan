@@ -74,6 +74,18 @@ services:
       GOTRUE_SITE_URL: ${GOTRUE_SITE_URL}
       GOTRUE_DISABLE_SIGNUP: "false"
       GOTRUE_JWT_SECRET: ${GOTRUE_JWT_SECRET}
+      # PER-273: asymmetric (ES256) signing so getClaims() can verify
+      # locally against GoTrue's JWKS instead of round-tripping to this
+      # service on every call. GOTRUE_JWT_SECRET above stays set and
+      # registered inside GOTRUE_JWT_KEYS as a verify-only HS256 entry —
+      # GoTrue also falls back to it directly for any already-issued
+      # HS256 token presented with no "kid" header — confirmed against
+      # supabase/auth's internal/api/auth.go parseJWTClaims source and by
+      # verifying live against a real GoTrue container (mock-session.ts-shaped
+      # token, no kid, accepted by /user) — so sessions issued before this
+      # migration keep verifying without a forced logout.
+      GOTRUE_JWT_KEYS: ${GOTRUE_JWT_KEYS}
+      GOTRUE_JWT_KEY_ID: ${GOTRUE_JWT_KEY_ID}
       GOTRUE_JWT_EXP: 3600
       GOTRUE_JWT_AUD: authenticated
       GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
