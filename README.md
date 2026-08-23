@@ -74,8 +74,9 @@ Each service has a Compose `healthcheck`; `app` only starts serving once `db` an
 ```bash
 cp .env.example .env
 # Edit .env: DOMAIN, AUTH_DOMAIN, GOTRUE_SITE_URL, GOTRUE_API_EXTERNAL_URL,
-# GOTRUE_JWT_SECRET, POSTGRES_PASSWORD, and (for off-server backups)
-# BACKUP_RCLONE_REMOTE + RCLONE_CONFIG_<REMOTE>_* — see .env.example.
+# GOTRUE_JWT_SECRET, GOTRUE_JWT_KEYS, GOTRUE_JWT_KEY_ID, POSTGRES_PASSWORD,
+# and (for off-server backups) BACKUP_RCLONE_REMOTE +
+# RCLONE_CONFIG_<REMOTE>_* — see .env.example.
 docker compose --profile production up -d --build
 npm run db:migrate
 ```
