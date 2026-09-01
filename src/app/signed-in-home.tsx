@@ -8,7 +8,6 @@ import { Fragment, useMemo, useOptimistic, useState } from "react";
 import { ACTION_BUTTON_CLASS, ACTION_ICON_CLASS } from "./action-button";
 import { AppHeader } from "./app-header";
 import { BatchEntryVariantA } from "./batch-entry-prototype-variant-a";
-import { BatchEntryVariantB } from "./batch-entry-prototype-variant-b";
 import { BatchEntryVariantC } from "./batch-entry-prototype-variant-c";
 import type { PrototypeItem } from "./batch-entry-prototype-session";
 import { MinusIcon, PlusIcon } from "./icons";
@@ -334,9 +333,7 @@ export function SignedInHome({ items, locations }: Props) {
   const isPrototypeBuild = process.env.NODE_ENV !== "production";
   const searchParams = useSearchParams();
   const prototypeVariant = searchParams.get("variant") ?? "A";
-  const [batchDialog, setBatchDialog] = useState<
-    null | "unified" | "add" | "remove"
-  >(null);
+  const [batchDialog, setBatchDialog] = useState<null | "unified">(null);
   const prototypeItems: PrototypeItem[] = useMemo(
     () =>
       items.map((item) => ({
@@ -510,20 +507,18 @@ export function SignedInHome({ items, locations }: Props) {
             )}
             {isPrototypeBuild && prototypeVariant === "B" && (
               <>
-                <button
-                  type="button"
-                  onClick={() => setBatchDialog("add")}
+                <Link
+                  href="/batch/add"
                   className="rounded border border-dashed border-fuchsia-500 px-3 py-1.5 text-sm font-medium text-fuchsia-700 dark:text-fuchsia-300"
                 >
                   Add stock
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBatchDialog("remove")}
+                </Link>
+                <Link
+                  href="/batch/remove"
                   className="rounded border border-dashed border-fuchsia-500 px-3 py-1.5 text-sm font-medium text-fuchsia-700 dark:text-fuchsia-300"
                 >
                   Remove stock
-                </button>
+                </Link>
               </>
             )}
             <Link
@@ -581,19 +576,11 @@ export function SignedInHome({ items, locations }: Props) {
           onClose={() => setBatchDialog(null)}
         />
       )}
-      {isPrototypeBuild &&
-        (batchDialog === "add" || batchDialog === "remove") && (
-          <BatchEntryVariantB
-            direction={batchDialog}
-            items={prototypeItems}
-            onClose={() => setBatchDialog(null)}
-          />
-        )}
       {isPrototypeBuild && (
         <PrototypeSwitcher
           variants={[
             { key: "A", label: "Unified session dialog" },
-            { key: "B", label: "Camera-first split view" },
+            { key: "B", label: "Camera-first split — separate pages" },
             { key: "C", label: "Inline panel, no dialog" },
           ]}
           current={prototypeVariant}
