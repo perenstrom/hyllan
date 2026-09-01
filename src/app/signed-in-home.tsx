@@ -2,13 +2,19 @@
 
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Fragment, useMemo, useOptimistic, useState } from "react";
 
 import { ACTION_BUTTON_CLASS, ACTION_ICON_CLASS } from "./action-button";
 import { AppHeader } from "./app-header";
+import { BatchEntryVariantA } from "./batch-entry-prototype-variant-a";
+import { BatchEntryVariantB } from "./batch-entry-prototype-variant-b";
+import { BatchEntryVariantC } from "./batch-entry-prototype-variant-c";
+import type { PrototypeItem } from "./batch-entry-prototype-session";
 import { MinusIcon, PlusIcon } from "./icons";
 import { decrementItem, incrementItem } from "./items/actions";
 import { LocationFilterDropdown } from "./location-filter-dropdown";
+import { PrototypeSwitcher } from "./prototype-switcher";
 import { RowActionsMenu } from "./row-actions-menu";
 import { StatusFilterDropdown } from "./status-filter-dropdown";
 import {
@@ -321,6 +327,27 @@ export function SignedInHome({ items, locations }: Props) {
   );
   const [groupBy, setGroupBy] = useState<GroupBy>("item");
 
+  // PER-278 prototype infrastructure — never renders in production (see the
+  // NODE_ENV check around usage below and in PrototypeSwitcher). Not part
+  // of the real app; folded in on the throwaway prototype branch this
+  // ticket points at, dropped from main once the ticket is resolved.
+  const isPrototypeBuild = process.env.NODE_ENV !== "production";
+  const searchParams = useSearchParams();
+  const prototypeVariant = searchParams.get("variant") ?? "A";
+  const [batchDialog, setBatchDialog] = useState<
+    null | "unified" | "add" | "remove"
+  >(null);
+  const prototypeItems: PrototypeItem[] = useMemo(
+    () =>
+      items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        unit: item.unit,
+        quantity: Number(item.quantity),
+      })),
+    [items],
+  );
+
   // Starts with every (unfiltered) multi-location item already open (PER-288
   // review) — computed once from the initial items, not recomputed as
   // buckets change under editing, mirroring sort order's own frozen-order
@@ -472,6 +499,33 @@ export function SignedInHome({ items, locations }: Props) {
                 />
               </>
             )}
+            {isPrototypeBuild && prototypeVariant === "A" && (
+              <button
+                type="button"
+                onClick={() => setBatchDialog("unified")}
+                className="rounded border border-dashed border-fuchsia-500 px-3 py-1.5 text-sm font-medium text-fuchsia-700 dark:text-fuchsia-300"
+              >
+                Batch update
+              </button>
+            )}
+            {isPrototypeBuild && prototypeVariant === "B" && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setBatchDialog("add")}
+                  className="rounded border border-dashed border-fuchsia-500 px-3 py-1.5 text-sm font-medium text-fuchsia-700 dark:text-fuchsia-300"
+                >
+                  Add stock
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBatchDialog("remove")}
+                  className="rounded border border-dashed border-fuchsia-500 px-3 py-1.5 text-sm font-medium text-fuchsia-700 dark:text-fuchsia-300"
+                >
+                  Remove stock
+                </button>
+              </>
+            )}
             <Link
               href="/items/new"
               className="rounded bg-black px-3 py-1.5 text-sm font-medium text-white dark:bg-zinc-50 dark:text-black"
@@ -480,6 +534,10 @@ export function SignedInHome({ items, locations }: Props) {
             </Link>
           </div>
         </div>
+
+        {isPrototypeBuild && prototypeVariant === "C" && (
+          <BatchEntryVariantC items={prototypeItems} />
+        )}
 
         {optimisticItems.length > 0 && (
           <div className="px-2 sm:px-0">
@@ -516,6 +574,31 @@ export function SignedInHome({ items, locations }: Props) {
           />
         )}
       </main>
+
+      {isPrototypeBuild && batchDialog === "unified" && (
+        <BatchEntryVariantA
+          items={prototypeItems}
+          onClose={() => setBatchDialog(null)}
+        />
+      )}
+      {isPrototypeBuild &&
+        (batchDialog === "add" || batchDialog === "remove") && (
+          <BatchEntryVariantB
+            direction={batchDialog}
+            items={prototypeItems}
+            onClose={() => setBatchDialog(null)}
+          />
+        )}
+      {isPrototypeBuild && (
+        <PrototypeSwitcher
+          variants={[
+            { key: "A", label: "Unified session dialog" },
+            { key: "B", label: "Camera-first split view" },
+            { key: "C", label: "Inline panel, no dialog" },
+          ]}
+          current={prototypeVariant}
+        />
+      )}
     </div>
   );
 }
