@@ -4,11 +4,10 @@ import { useReducer, useState } from "react";
 
 import type { PantryItemUnit } from "@/lib/pantry-item";
 
-// PER-278 prototype infrastructure — shared session/state logic behind all
-// three variants (an in-memory reducer, not a layout, so sharing it doesn't
-// flatten the variants into the anti-pattern UI.md warns against). No real
-// mutation ever happens: this only ever touches its own local copy of the
-// item list, never the server actions the real app/items list uses.
+// PER-278 prototype infrastructure — shared session/state logic (an
+// in-memory reducer, not a layout). No real mutation ever happens: this
+// only ever touches its own local copy of the item list, never the server
+// actions the real app/items list uses.
 
 export type BatchDirection = "add" | "remove";
 
@@ -27,7 +26,13 @@ export type BatchEntry = {
   delta: number;
   newTotal: number;
   direction: BatchDirection;
-  source: "manual" | "scan";
+  source: "manual" | "scan" | "reversal";
+  // Set on the original entry once someone reverses it — the entry stays
+  // in the list (struck through) rather than disappearing, so the session
+  // log stays an honest record of everything that happened.
+  reversedByEntryId?: string;
+  // Set on the reversal entry itself, pointing back at what it undid.
+  reversesEntryId?: string;
 };
 
 type State = { items: PrototypeItem[]; entries: BatchEntry[] };
@@ -38,8 +43,28 @@ type CommitAction = {
   entry: BatchEntry;
 };
 
-function reducer(state: State, action: CommitAction): State {
-  return { items: action.items, entries: [action.entry, ...state.entries] };
+type ReverseAction = {
+  type: "reverse";
+  items: PrototypeItem[];
+  reversalEntry: BatchEntry;
+  originalEntryId: string;
+};
+
+function reducer(state: State, action: CommitAction | ReverseAction): State {
+  if (action.type === "commit") {
+    return { items: action.items, entries: [action.entry, ...state.entries] };
+  }
+  return {
+    items: action.items,
+    entries: [
+      action.reversalEntry,
+      ...state.entries.map((entry) =>
+        entry.id === action.originalEntryId
+          ? { ...entry, reversedByEntryId: action.reversalEntry.id }
+          : entry,
+      ),
+    ],
+  };
 }
 
 export function useBatchSession(initialItems: PrototypeItem[]) {
@@ -103,7 +128,52 @@ export function useBatchSession(initialItems: PrototypeItem[]) {
     return entry;
   }
 
-  return { items: state.items, entries: state.entries, applyEntry };
+  // Undoes one entry's effect on its item's quantity — for "I scanned (or
+  // typed) the wrong thing." A no-op if the entry is already reversed or
+  // the item it targeted no longer exists (both should be unreachable from
+  // the UI, which only ever offers this on live, un-reversed entries).
+  function reverseEntry(entryId: string) {
+    const original = state.entries.find((entry) => entry.id === entryId);
+    if (!original || original.reversedByEntryId) {
+      return;
+    }
+    const target = state.items.find((item) => item.id === original.itemId);
+    if (!target) {
+      return;
+    }
+
+    const inverseDelta = -original.delta;
+    const newTotal = Math.max(0, target.quantity + inverseDelta);
+    const items = state.items.map((item) =>
+      item.id === target.id ? { ...item, quantity: newTotal } : item,
+    );
+
+    const reversalEntry: BatchEntry = {
+      id: `entry-${Math.random().toString(36).slice(2, 9)}`,
+      itemId: target.id,
+      itemName: target.name,
+      unit: original.unit,
+      delta: inverseDelta,
+      newTotal,
+      direction: original.direction === "add" ? "remove" : "add",
+      source: "reversal",
+      reversesEntryId: original.id,
+    };
+
+    dispatch({
+      type: "reverse",
+      items,
+      reversalEntry,
+      originalEntryId: entryId,
+    });
+  }
+
+  return {
+    items: state.items,
+    entries: state.entries,
+    applyEntry,
+    reverseEntry,
+  };
 }
 
 // A fixed pair of demo barcode values so "Simulate scan" always exercises

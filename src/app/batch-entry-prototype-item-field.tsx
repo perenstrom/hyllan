@@ -1,5 +1,6 @@
 "use client";
 
+import { ScanBarcode } from "lucide-react";
 import { useState } from "react";
 
 import type { PrototypeItem } from "./batch-entry-prototype-session";
@@ -21,6 +22,12 @@ type Props = {
     unit: PantryItemUnit;
     quantity: number;
   }) => void;
+  // The scan icon lives inside the search bar, but the camera panel it
+  // opens is the page's to render (it sits alongside the registration
+  // flow, which this row knows nothing about) — so this row only ever
+  // reports the toggle, never owns the open/closed state itself.
+  onToggleScan?: () => void;
+  scanActive?: boolean;
 };
 
 export function BatchItemEntryRow({
@@ -29,6 +36,8 @@ export function BatchItemEntryRow({
   allowCreate,
   actionLabel,
   onCommit,
+  onToggleScan,
+  scanActive,
 }: Props) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -87,28 +96,47 @@ export function BatchItemEntryRow({
           >
             Item
           </label>
-          <input
-            id={`${idPrefix}-item`}
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setSelectedId(null);
-              setOpen(true);
-            }}
-            onFocus={() => setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 100)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                commit();
+          <div className="relative mt-1">
+            <input
+              id={`${idPrefix}-item`}
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setSelectedId(null);
+                setOpen(true);
+              }}
+              onFocus={() => setOpen(true)}
+              onBlur={() => setTimeout(() => setOpen(false), 100)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  commit();
+                }
+              }}
+              placeholder={
+                allowCreate ? "Search or add an item" : "Search for an item"
               }
-            }}
-            placeholder={
-              allowCreate ? "Search or add an item" : "Search for an item"
-            }
-            autoComplete="off"
-            className="mt-1 h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
-          />
+              autoComplete="off"
+              className={`h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900 ${
+                onToggleScan ? "pr-9" : ""
+              }`}
+            />
+            {onToggleScan && (
+              <button
+                type="button"
+                onClick={onToggleScan}
+                aria-pressed={scanActive}
+                aria-label={
+                  scanActive ? "Close barcode scanner" : "Scan a barcode"
+                }
+                className={`absolute top-1/2 right-1.5 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 ${
+                  scanActive ? "bg-zinc-200 dark:bg-zinc-700" : ""
+                }`}
+              >
+                <ScanBarcode className="h-4 w-4" />
+              </button>
+            )}
+          </div>
           {open && trimmed.length > 0 && (
             <ul className="absolute top-full z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
               {matches.map((item) => (

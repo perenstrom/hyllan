@@ -1,5 +1,6 @@
 "use client";
 
+import { Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -15,12 +16,16 @@ import {
   type PrototypeItem,
 } from "./batch-entry-prototype-session";
 
-// PER-278 prototype infrastructure — the requested combination: Variant B's
-// split path (a separate Add/Remove entry point, camera live and persistent
-// alongside manual entry) rendered as a real navigated page instead of a
-// <dialog>. No modal chrome at all — a "Done" link is real in-app
-// navigation back to "/", not a close handler; the browser back button
-// works, and there's no focus trap to manage.
+// PER-278 prototype infrastructure — Variant B's split path (a dedicated
+// Add/Remove entry point) as a real page, not a <dialog>. "Done" is real
+// in-app navigation back to "/", not a close handler — the browser back
+// button works, and there's no focus trap to manage.
+//
+// The camera is off by default (review feedback): a barcode icon inside
+// the search bar toggles it, rather than it being live the moment the page
+// opens. Each session-log entry carries its own Reverse control, for "I
+// scanned (or typed) the wrong thing" — see reverseEntry in the session
+// hook for what that actually does to the item's quantity.
 type Props = {
   direction: BatchDirection;
   items: PrototypeItem[];
@@ -30,9 +35,10 @@ export function BatchEntryPrototypePageBody({
   direction,
   items: initialItems,
 }: Props) {
-  const { items, entries, applyEntry } = useBatchSession(initialItems);
+  const { items, entries, applyEntry, reverseEntry } =
+    useBatchSession(initialItems);
   const { register, resolve } = useBarcodeRegistry(initialItems[0]?.id);
-  const [cameraOn, setCameraOn] = useState(true);
+  const [scanning, setScanning] = useState(false);
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null);
 
   function handleScan(kind: "known" | "unknown") {
@@ -54,6 +60,8 @@ export function BatchEntryPrototypePageBody({
     }
 
     if (direction === "remove") {
+      // Remove never creates (locked decision) — an unregistered barcode
+      // in remove mode has nothing to resolve to.
       return;
     }
     setPendingBarcode(barcode);
@@ -107,40 +115,6 @@ export function BatchEntryPrototypePageBody({
         </Link>
       </div>
 
-      <div>
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">
-            Camera
-          </span>
-          <button
-            type="button"
-            onClick={() => setCameraOn((current) => !current)}
-            className="text-xs text-zinc-500 underline dark:text-zinc-500"
-          >
-            {cameraOn ? "Turn off" : "Turn on"}
-          </button>
-        </div>
-        {cameraOn ? (
-          <BatchScanCamera
-            className="mt-1 h-48 w-full"
-            onSimulateScan={handleScan}
-          />
-        ) : (
-          <div className="mt-1 flex h-10 items-center rounded border border-dashed border-zinc-300 px-3 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-500">
-            Camera off — manual entry only
-          </div>
-        )}
-      </div>
-
-      {pendingBarcode && (
-        <BarcodeRegisterPanel
-          barcode={pendingBarcode}
-          items={items}
-          onResolve={resolveRegistration}
-          onCancel={() => setPendingBarcode(null)}
-        />
-      )}
-
       <BatchItemEntryRow
         idPrefix="batch-page"
         items={items}
@@ -156,7 +130,22 @@ export function BatchEntryPrototypePageBody({
             source: "manual",
           })
         }
+        onToggleScan={() => setScanning((current) => !current)}
+        scanActive={scanning}
       />
+
+      {scanning && (
+        <BatchScanCamera className="w-full" onSimulateScan={handleScan} />
+      )}
+
+      {pendingBarcode && (
+        <BarcodeRegisterPanel
+          barcode={pendingBarcode}
+          items={items}
+          onResolve={resolveRegistration}
+          onCancel={() => setPendingBarcode(null)}
+        />
+      )}
 
       <div>
         <h2 className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
@@ -168,29 +157,52 @@ export function BatchEntryPrototypePageBody({
           </p>
         ) : (
           <ul className="mt-1 flex flex-col gap-1 text-sm">
-            {entries.map((entry) => (
-              <li
-                key={entry.id}
-                className="flex items-center justify-between rounded border border-zinc-100 px-2 py-1 dark:border-zinc-900"
-              >
-                <span>
-                  {entry.itemName}
-                  {entry.source === "scan" && (
-                    <span className="ml-1 text-xs text-zinc-500 dark:text-zinc-500">
-                      (scan)
-                    </span>
-                  )}
-                </span>
-                <span
-                  className={
-                    entry.delta >= 0 ? "text-emerald-600" : "text-red-600"
-                  }
+            {entries.map((entry) => {
+              const isReversed = Boolean(entry.reversedByEntryId);
+              const isReversal = entry.source === "reversal";
+              return (
+                <li
+                  key={entry.id}
+                  className={`flex items-center justify-between gap-2 rounded border border-zinc-100 px-2 py-1 dark:border-zinc-900 ${
+                    isReversed ? "opacity-50" : ""
+                  }`}
                 >
-                  {entry.delta >= 0 ? "+" : ""}
-                  {entry.delta} → {entry.newTotal} {entry.unit}
-                </span>
-              </li>
-            ))}
+                  <span className={isReversed ? "line-through" : ""}>
+                    {entry.itemName}
+                    {entry.source === "scan" && (
+                      <span className="ml-1 text-xs text-zinc-500 dark:text-zinc-500">
+                        (scan)
+                      </span>
+                    )}
+                    {isReversal && (
+                      <span className="ml-1 text-xs text-zinc-500 dark:text-zinc-500">
+                        (reversal)
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={
+                        entry.delta >= 0 ? "text-emerald-600" : "text-red-600"
+                      }
+                    >
+                      {entry.delta >= 0 ? "+" : ""}
+                      {entry.delta} → {entry.newTotal} {entry.unit}
+                    </span>
+                    {!isReversed && !isReversal && (
+                      <button
+                        type="button"
+                        onClick={() => reverseEntry(entry.id)}
+                        aria-label={`Reverse ${entry.itemName}`}
+                        className="text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+                      >
+                        <Undo2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
