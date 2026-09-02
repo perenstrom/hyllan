@@ -3,6 +3,8 @@
 import { ScanBarcode } from "lucide-react";
 import { useState } from "react";
 
+import { ACTION_BUTTON_BASE_CLASS, ACTION_ICON_CLASS } from "./action-button";
+import { MinusIcon, PlusIcon } from "./icons";
 import type { PrototypeItem } from "./batch-entry-prototype-session";
 import type { PantryItemUnit } from "@/lib/pantry-item";
 
@@ -53,6 +55,16 @@ export function BatchItemEntryRow({
     (item) => item.name.toLowerCase() === trimmed.toLowerCase(),
   );
   const canCreate = allowCreate && trimmed.length > 0 && !exactMatch;
+
+  // Mirrors the real list's increment/decrement affordance (ADR 0004)
+  // rather than only supporting typed entry — nudges by whole steps off
+  // the current field value, clamped at 0 the same way the quantity input
+  // itself is (min="0").
+  function step(delta: number) {
+    const current = Number(quantity);
+    const base = Number.isFinite(current) ? current : 0;
+    setQuantity(String(Math.max(0, base + delta)));
+  }
 
   function selectExisting(item: PrototypeItem) {
     setQuery(item.name);
@@ -173,28 +185,47 @@ export function BatchItemEntryRow({
           )}
         </div>
 
-        <div className="w-full sm:w-24">
+        <div className="w-full sm:w-40">
           <label
             htmlFor={`${idPrefix}-quantity`}
             className="text-sm text-zinc-600 dark:text-zinc-400"
           >
             Quantity
           </label>
-          <input
-            id={`${idPrefix}-quantity`}
-            type="number"
-            min="0"
-            step="any"
-            value={quantity}
-            onChange={(event) => setQuantity(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                commit();
-              }
-            }}
-            className="mt-1 h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
-          />
+          <div className="mt-1 flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => step(-1)}
+              disabled={Number(quantity) <= 0}
+              aria-label="Decrease quantity"
+              className={`${ACTION_BUTTON_BASE_CLASS} h-10 w-10 shrink-0`}
+            >
+              <MinusIcon className={ACTION_ICON_CLASS} />
+            </button>
+            <input
+              id={`${idPrefix}-quantity`}
+              type="number"
+              min="0"
+              step="any"
+              value={quantity}
+              onChange={(event) => setQuantity(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  commit();
+                }
+              }}
+              className="h-10 w-full min-w-0 rounded border border-zinc-300 px-2 text-center dark:border-zinc-700 dark:bg-zinc-900"
+            />
+            <button
+              type="button"
+              onClick={() => step(1)}
+              aria-label="Increase quantity"
+              className={`${ACTION_BUTTON_BASE_CLASS} h-10 w-10 shrink-0`}
+            >
+              <PlusIcon className={ACTION_ICON_CLASS} />
+            </button>
+          </div>
         </div>
 
         <button
