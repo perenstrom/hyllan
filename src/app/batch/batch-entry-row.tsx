@@ -92,19 +92,30 @@ export function BatchEntryRow({
     } else if (allowCreate) {
       commitTarget = { newItemName: trimmed };
     } else {
+      setOpen(false);
       setError(`No item matches “${trimmed}”.`);
       return;
     }
 
-    setOpen(false);
+    // Clears the row up front rather than after the server answers, so
+    // whatever's typed for the next entry while this one saves isn't wiped
+    // when it lands. A failure puts the submitted values back to correct.
+    const submitted = { query, selectedId, quantity };
+    reset();
     const failure = await onCommit(commitTarget, parsed);
     if (failure) {
+      setQuery(submitted.query);
+      setSelectedId(submitted.selectedId);
+      setQuantity(submitted.quantity);
       setError(failure);
-      return;
     }
+  }
+
+  function reset() {
     setQuery("");
     setSelectedId(null);
     setQuantity(DEFAULT_QUANTITY);
+    setOpen(false);
     setError(null);
   }
 

@@ -116,6 +116,24 @@ describe("BatchEntry", () => {
     expect(quantityField()).toHaveValue(1);
   });
 
+  it("keeps what's typed for the next entry while the previous commit is still saving", async () => {
+    let resolveFirst!: (result: BatchEntryResult) => void;
+    adjustBatchItemMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFirst = resolve;
+      }),
+    );
+    renderBatch("add");
+
+    selectItem("Rice");
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    typeItem("Beans");
+    resolveFirst(ok("rice", "Rice", "kg", "1", "4"));
+
+    await within(await sessionLog()).findByText("Rice");
+    expect(itemField()).toHaveValue("Beans");
+  });
+
   it("steps the quantity with +/- and never below zero", () => {
     renderBatch("add");
 

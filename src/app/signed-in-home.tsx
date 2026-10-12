@@ -87,6 +87,11 @@ const OUT_OF_STOCK_ROW_CLASS =
 const LOW_STOCK_ROW_CLASS =
   "bg-amber-100 text-zinc-600 dark:bg-amber-950 dark:text-zinc-300";
 
+// Batch entry's two entry points (PER-307) — outlined, so they read as
+// secondary to the header's solid "+ Add item".
+const BATCH_LINK_CLASS =
+  "rounded border border-zinc-300 px-3 py-1.5 text-sm font-medium whitespace-nowrap text-zinc-700 dark:border-zinc-700 dark:text-zinc-300";
+
 const SORT_STORAGE_KEY = "hyllan:pantry-sort";
 const STATUS_FILTER_STORAGE_KEY = "hyllan:pantry-status-filter";
 const LOCATION_FILTER_STORAGE_KEY = "hyllan:pantry-location-filter";
@@ -454,11 +459,11 @@ export function SignedInHome({ items, locations }: Props) {
     <div className="flex flex-1 flex-col bg-zinc-50 font-sans dark:bg-black">
       <AppHeader />
       <main className="flex flex-1 flex-col gap-4 py-5 sm:px-6 sm:py-6">
-        <div className="flex items-center justify-between gap-2 px-2 sm:px-0">
+        <div className="flex items-center justify-between px-2 sm:px-0">
           <h1 className="text-lg font-semibold text-black dark:text-zinc-50">
             Your pantry
           </h1>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex items-center gap-2">
             {optimisticItems.length > 0 && (
               <>
                 <LocationFilterDropdown
@@ -473,18 +478,6 @@ export function SignedInHome({ items, locations }: Props) {
               </>
             )}
             <Link
-              href="/batch/add"
-              className="rounded border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
-            >
-              Add stock
-            </Link>
-            <Link
-              href="/batch/remove"
-              className="rounded border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
-            >
-              Remove stock
-            </Link>
-            <Link
               href="/items/new"
               className="rounded bg-black px-3 py-1.5 text-sm font-medium text-white dark:bg-zinc-50 dark:text-black"
             >
@@ -493,11 +486,21 @@ export function SignedInHome({ items, locations }: Props) {
           </div>
         </div>
 
-        {optimisticItems.length > 0 && (
-          <div className="px-2 sm:px-0">
-            <GroupByToggle value={groupBy} onChange={setGroupBy} />
+        <div className="flex flex-wrap items-center gap-2 px-2 sm:px-0">
+          {optimisticItems.length > 0 && (
+            <div className="shrink-0">
+              <GroupByToggle value={groupBy} onChange={setGroupBy} />
+            </div>
+          )}
+          <div className="ml-auto flex items-center gap-2">
+            <Link href="/batch/add" className={BATCH_LINK_CLASS}>
+              Add stock
+            </Link>
+            <Link href="/batch/remove" className={BATCH_LINK_CLASS}>
+              Remove stock
+            </Link>
           </div>
-        )}
+        </div>
 
         {optimisticItems.length === 0 ? (
           <p className="flex flex-1 items-center justify-center text-lg text-zinc-600 dark:text-zinc-400">

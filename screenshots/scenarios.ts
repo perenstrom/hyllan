@@ -236,8 +236,10 @@ export const SCENARIOS: Scenario[] = [
     interactions: async (page) => {
       await page.getByLabel("Item").fill("Coffee");
       await page.getByRole("button", { name: "Add", exact: true }).click();
+      await page.getByRole("button", { name: "Reverse Coffee" }).waitFor();
       await page.getByLabel("Item").fill("Rice");
       await page.getByRole("button", { name: "Add", exact: true }).click();
+      await page.getByRole("button", { name: "Reverse Rice" }).waitFor();
       await page.getByRole("button", { name: "Reverse Coffee" }).click();
       await page.getByText("(reversal)").waitFor({ state: "visible" });
     },
@@ -260,7 +262,9 @@ export const SCENARIOS: Scenario[] = [
     interactions: async (page) => {
       await page.getByLabel("Item").fill("Lentils");
       await page.getByRole("button", { name: "Remove", exact: true }).click();
-      await page.getByRole("alert").waitFor({ state: "visible" });
+      await page
+        .getByText("No item matches “Lentils”.")
+        .waitFor({ state: "visible" });
     },
   },
 
