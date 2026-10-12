@@ -454,11 +454,11 @@ export function SignedInHome({ items, locations }: Props) {
     <div className="flex flex-1 flex-col bg-zinc-50 font-sans dark:bg-black">
       <AppHeader />
       <main className="flex flex-1 flex-col gap-4 py-5 sm:px-6 sm:py-6">
-        <div className="flex items-center justify-between px-2 sm:px-0">
+        <div className="flex items-center justify-between gap-2 px-2 sm:px-0">
           <h1 className="text-lg font-semibold text-black dark:text-zinc-50">
             Your pantry
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {optimisticItems.length > 0 && (
               <>
                 <LocationFilterDropdown
@@ -472,6 +472,18 @@ export function SignedInHome({ items, locations }: Props) {
                 />
               </>
             )}
+            <Link
+              href="/batch/add"
+              className="rounded border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+            >
+              Add stock
+            </Link>
+            <Link
+              href="/batch/remove"
+              className="rounded border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+            >
+              Remove stock
+            </Link>
             <Link
               href="/items/new"
               className="rounded bg-black px-3 py-1.5 text-sm font-medium text-white dark:bg-zinc-50 dark:text-black"

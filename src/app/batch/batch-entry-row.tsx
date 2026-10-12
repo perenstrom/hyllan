@@ -1,0 +1,237 @@
+"use client";
+
+import { useState } from "react";
+
+import {
+  ACTION_BUTTON_BASE_CLASS,
+  ACTION_ICON_CLASS,
+} from "@/app/action-button";
+import { MinusIcon, PlusIcon } from "@/app/icons";
+import type { PantryItemUnit } from "@/lib/pantry-item";
+import { formatQuantity, parseQuantity } from "@/lib/pantry-item";
+
+export type BatchItemOption = {
+  id: string;
+  name: string;
+  unit: PantryItemUnit;
+  quantity: string;
+};
+
+type CommitTarget = { itemId: string } | { newItemName: string };
+
+type Props = {
+  items: BatchItemOption[];
+  // Add mode only — remove never creates (PER-278's locked decision).
+  allowCreate: boolean;
+  actionLabel: string;
+  pending: boolean;
+  // Resolves to an error message to show inline, or null on success.
+  onCommit: (target: CommitTarget, quantity: string) => Promise<string | null>;
+};
+
+const DEFAULT_QUANTITY = "1";
+
+// The quick-entry row: a filtering autocomplete over the household's items
+// (same pattern as ItemPickerCombobox/LocationPickerCombobox) plus an
+// explicit quantity with the Actions column's +/- stepper shape (ADR
+// 0004), clamped at 0. Enter in either field, or the action button,
+// commits.
+export function BatchEntryRow({
+  items,
+  allowCreate,
+  actionLabel,
+  pending,
+  onCommit,
+}: Props) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [quantity, setQuantity] = useState(DEFAULT_QUANTITY);
+  const [error, setError] = useState<string | null>(null);
+
+  const trimmed = query.trim();
+  const normalized = trimmed.toLowerCase();
+  const matches = items.filter((item) =>
+    item.name.toLowerCase().includes(normalized),
+  );
+  const exactMatch = items.find(
+    (item) => item.name.toLowerCase() === normalized,
+  );
+  const canCreate = allowCreate && trimmed.length > 0 && !exactMatch;
+
+  function step(delta: number) {
+    const current = Number(quantity);
+    const base = Number.isFinite(current) ? current : 0;
+    setQuantity(String(Math.max(0, base + delta)));
+  }
+
+  function selectExisting(item: BatchItemOption) {
+    setQuery(item.name);
+    setSelectedId(item.id);
+    setOpen(false);
+    setError(null);
+  }
+
+  async function commit() {
+    if (pending || !trimmed) {
+      return;
+    }
+    const parsed = parseQuantity(quantity);
+    if (parsed === null || Number(parsed) <= 0) {
+      setError("Quantity must be a positive number.");
+      return;
+    }
+
+    const target = items.find((item) => item.id === selectedId) ?? exactMatch;
+    let commitTarget: CommitTarget;
+    if (target) {
+      commitTarget = { itemId: target.id };
+    } else if (allowCreate) {
+      commitTarget = { newItemName: trimmed };
+    } else {
+      setError(`No item matches “${trimmed}”.`);
+      return;
+    }
+
+    setOpen(false);
+    const failure = await onCommit(commitTarget, parsed);
+    if (failure) {
+      setError(failure);
+      return;
+    }
+    setQuery("");
+    setSelectedId(null);
+    setQuantity(DEFAULT_QUANTITY);
+    setError(null);
+  }
+
+  function commitOnEnter(event: React.KeyboardEvent) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void commit();
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="relative flex-1">
+          <label
+            htmlFor="batch-item"
+            className="text-sm text-zinc-600 dark:text-zinc-400"
+          >
+            Item
+          </label>
+          <input
+            id="batch-item"
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setSelectedId(null);
+              setOpen(true);
+              setError(null);
+            }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 100)}
+            onKeyDown={commitOnEnter}
+            placeholder={
+              allowCreate ? "Search or add an item" : "Search for an item"
+            }
+            autoComplete="off"
+            className="mt-1 h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
+          />
+          {open && trimmed.length > 0 && (
+            <ul className="absolute top-full z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
+              {matches.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onMouseDown={() => selectExisting(item)}
+                    className="block w-full px-3 py-1.5 text-left text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  >
+                    {item.name}{" "}
+                    <span className="text-zinc-500 dark:text-zinc-500">
+                      ({formatQuantity(item.quantity, item.unit)})
+                    </span>
+                  </button>
+                </li>
+              ))}
+              {canCreate && (
+                <li>
+                  <button
+                    type="button"
+                    onMouseDown={() => setOpen(false)}
+                    className="block w-full px-3 py-1.5 text-left text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  >
+                    Add &ldquo;{trimmed}&rdquo; as a new item
+                  </button>
+                </li>
+              )}
+              {matches.length === 0 && !canCreate && (
+                <li className="px-3 py-1.5 text-zinc-500 dark:text-zinc-500">
+                  No matches
+                </li>
+              )}
+            </ul>
+          )}
+        </div>
+
+        <div className="w-full sm:w-40">
+          <label
+            htmlFor="batch-quantity"
+            className="text-sm text-zinc-600 dark:text-zinc-400"
+          >
+            Quantity
+          </label>
+          <div className="mt-1 flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => step(-1)}
+              disabled={!(Number(quantity) > 0)}
+              aria-label="Decrease quantity"
+              className={`${ACTION_BUTTON_BASE_CLASS} h-10 w-10 shrink-0`}
+            >
+              <MinusIcon className={ACTION_ICON_CLASS} />
+            </button>
+            <input
+              id="batch-quantity"
+              type="number"
+              min="0"
+              step="any"
+              inputMode="decimal"
+              value={quantity}
+              onChange={(event) => {
+                setQuantity(event.target.value);
+                setError(null);
+              }}
+              onKeyDown={commitOnEnter}
+              className="h-10 w-full min-w-0 rounded border border-zinc-300 px-2 text-center dark:border-zinc-700 dark:bg-zinc-900"
+            />
+            <button
+              type="button"
+              onClick={() => step(1)}
+              aria-label="Increase quantity"
+              className={`${ACTION_BUTTON_BASE_CLASS} h-10 w-10 shrink-0`}
+            >
+              <PlusIcon className={ACTION_ICON_CLASS} />
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => void commit()}
+          disabled={pending}
+          className="h-10 shrink-0 rounded bg-black px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-50 dark:text-black"
+        >
+          {actionLabel}
+        </button>
+      </div>
+      {error && (
+        <p role="alert" className="text-sm text-red-600">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}

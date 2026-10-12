@@ -204,6 +204,19 @@ describe("SignedInHome", () => {
     );
   });
 
+  it("links to the batch add and remove stock pages", () => {
+    renderHome({ items: [] });
+
+    expect(screen.getByRole("link", { name: "Add stock" })).toHaveAttribute(
+      "href",
+      "/batch/add",
+    );
+    expect(screen.getByRole("link", { name: "Remove stock" })).toHaveAttribute(
+      "href",
+      "/batch/remove",
+    );
+  });
+
   it("renders increment/decrement controls and an overflow menu trigger per item", () => {
     renderHome({ items: [itemRow()] });
 

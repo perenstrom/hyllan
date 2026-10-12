@@ -343,6 +343,79 @@ export function decrementPantryItemQuantity<
   );
 }
 
+export type PantryItemAdjustment = {
+  item: PantryItemWithLocations;
+  // The signed delta actually written — differs from the requested delta
+  // when a removal hit the zero floor, so an undo can invert exactly what
+  // happened rather than what was asked for.
+  appliedDelta: string;
+};
+
+// Batch entry's add/remove (PER-307): moves one (item, location) bucket by
+// an arbitrary signed delta rather than increment/decrement's single step.
+// A positive delta creates the bucket if it doesn't exist yet (an item
+// whose stock all sits at Locations has no unassigned row); a negative one
+// clamps at zero — same floor as decrementQuantity — instead of rejecting.
+// Returns undefined when the item isn't in this household.
+export async function adjustPantryItemQuantityBy<
+  TQueryResult extends PgQueryResultHKT,
+>(
+  db: Database<TQueryResult>,
+  householdId: string,
+  itemId: string,
+  locationId: string | null,
+  delta: string,
+): Promise<PantryItemAdjustment | undefined> {
+  return db.transaction(async (tx) => {
+    const [item] = await tx
+      .select()
+      .from(pantryItems)
+      .where(scopedToItem(householdId, itemId));
+    if (!item) {
+      return undefined;
+    }
+
+    const [current] = await tx
+      .select()
+      .from(itemLocations)
+      .where(
+        and(
+          eq(itemLocations.pantryItemId, itemId),
+          locationIdCondition(locationId),
+        ),
+      )
+      .for("update");
+
+    // Arithmetic stays in Postgres numeric (not JS floats) so decimal
+    // quantities don't drift — 0.1 + 0.2 must land on exactly 0.3.
+    let appliedDelta = "0";
+    if (current) {
+      const [updated] = await tx
+        .update(itemLocations)
+        .set({
+          quantity: sql`greatest(${itemLocations.quantity} + ${delta}::numeric, 0)`,
+          updatedAt: new Date(),
+        })
+        .where(eq(itemLocations.id, current.id))
+        .returning({
+          appliedDelta: sql<string>`(${itemLocations.quantity} - ${current.quantity}::numeric)::text`,
+        });
+      appliedDelta = updated.appliedDelta;
+    } else if (Number(delta) > 0) {
+      await tx
+        .insert(itemLocations)
+        .values({ pantryItemId: itemId, locationId, quantity: delta });
+      appliedDelta = delta;
+    }
+
+    const bucketsByItem = await fetchBucketsByItem(tx, [itemId]);
+    return {
+      item: withLocations(item, bucketsByItem.get(itemId) ?? []),
+      appliedDelta,
+    };
+  });
+}
+
 // Stock take's correction (CONTEXT.md "Stock take", ADR 0006): sets one
 // (item, location) bucket's quantity directly to an absolute observed
 // value, creating the bucket row if it doesn't exist yet (shelf-to-stock
