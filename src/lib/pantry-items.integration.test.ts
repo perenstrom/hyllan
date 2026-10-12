@@ -10,6 +10,7 @@ import { households, itemLocations, locations, pantryItems } from "@/db/schema";
 import { addLocation } from "./locations";
 import {
   addPantryItem,
+  adjustPantryItemQuantityBy,
   decrementPantryItemQuantity,
   deletePantryItem,
   DuplicatePantryItemNameError,
@@ -907,5 +908,157 @@ describe("deletePantryItem", () => {
 
     expect(deleted).toBeUndefined();
     expect(await getPantryItem(db, otherHousehold.id, item.id)).toBeDefined();
+  });
+});
+
+describe("adjustPantryItemQuantityBy", () => {
+  let client: PGlite;
+  let db: Awaited<ReturnType<typeof createTestDb>>["db"];
+  let householdId: string;
+
+  beforeAll(async () => {
+    ({ client, db, householdId } = await createTestDb());
+  });
+
+  beforeEach(async () => {
+    await db.delete(pantryItems);
+    await db.delete(locations);
+  });
+
+  afterAll(async () => {
+    await client.close();
+  });
+
+  it("adds a positive delta to the targeted bucket, reporting the delta applied and the item's new total", async () => {
+    const item = await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+    });
+
+    const result = await adjustPantryItemQuantityBy(
+      db,
+      householdId,
+      item.id,
+      null,
+      "3",
+    );
+
+    expect(result?.appliedDelta).toBe("3");
+    expect(result?.item.quantity).toBe("5");
+  });
+
+  it("clamps a removal at zero, reporting only the amount actually removed", async () => {
+    const item = await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+    });
+
+    const result = await adjustPantryItemQuantityBy(
+      db,
+      householdId,
+      item.id,
+      null,
+      "-5",
+    );
+
+    expect(result?.appliedDelta).toBe("-2");
+    expect(result?.item.quantity).toBe("0");
+  });
+
+  it("keeps decimal quantities exact", async () => {
+    const item = await addPantryItem(db, householdId, {
+      name: "Milk",
+      quantity: "0.1",
+      unit: "l",
+    });
+
+    const result = await adjustPantryItemQuantityBy(
+      db,
+      householdId,
+      item.id,
+      null,
+      "0.2",
+    );
+
+    expect(result?.appliedDelta).toBe("0.2");
+    expect(result?.item.quantity).toBe("0.3");
+  });
+
+  it("creates the unassigned bucket on an add when the item's stock all sits at a location, leaving that location untouched", async () => {
+    const pantry = await addLocation(db, householdId, "Pantry");
+    const item = await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "4",
+      unit: "kg",
+      locationId: pantry.id,
+    });
+
+    const result = await adjustPantryItemQuantityBy(
+      db,
+      householdId,
+      item.id,
+      null,
+      "1",
+    );
+
+    expect(result?.item.quantity).toBe("5");
+    expect(result?.item.buckets).toEqual(
+      expect.arrayContaining([
+        { locationId: pantry.id, locationName: "Pantry", quantity: "4" },
+        { locationId: null, locationName: null, quantity: "1" },
+      ]),
+    );
+  });
+
+  it("removes nothing when the item has no unassigned bucket, never touching its located stock", async () => {
+    const pantry = await addLocation(db, householdId, "Pantry");
+    const item = await addPantryItem(db, householdId, {
+      name: "Rice",
+      quantity: "4",
+      unit: "kg",
+      locationId: pantry.id,
+    });
+
+    const result = await adjustPantryItemQuantityBy(
+      db,
+      householdId,
+      item.id,
+      null,
+      "-1",
+    );
+
+    expect(result?.appliedDelta).toBe("0");
+    expect(result?.item.quantity).toBe("4");
+  });
+
+  it("does not adjust an item belonging to a different household", async () => {
+    const [otherUser] = await db
+      .insert(schema.authUsers)
+      .values({ id: "77777777-7777-7777-7777-777777777777" })
+      .returning();
+    const [otherHousehold] = await db
+      .insert(households)
+      .values({ userId: otherUser.id })
+      .returning();
+    const item = await addPantryItem(db, otherHousehold.id, {
+      name: "Rice",
+      quantity: "2",
+      unit: "kg",
+    });
+
+    const result = await adjustPantryItemQuantityBy(
+      db,
+      householdId,
+      item.id,
+      null,
+      "1",
+    );
+
+    expect(result).toBeUndefined();
+    expect(
+      (await getPantryItem(db, otherHousehold.id, item.id))?.quantity,
+    ).toBe("2");
   });
 });

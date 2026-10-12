@@ -225,6 +225,49 @@ export const SCENARIOS: Scenario[] = [
     },
   },
 
+  // Batch entry (PER-307): the empty session, a session with a committed
+  // entry and its reversal, add mode's inline-create offer, and remove
+  // mode's no-match error.
+  { name: "batch-add", seed: DEFAULT_SEED_ITEMS, route: "/batch/add" },
+  {
+    name: "batch-add-session",
+    seed: [EDITABLE_ITEM, LOW_STOCK_ITEM],
+    route: "/batch/add",
+    interactions: async (page) => {
+      await page.getByLabel("Item").fill("Coffee");
+      await page.getByRole("button", { name: "Add", exact: true }).click();
+      await page.getByRole("button", { name: "Reverse Coffee" }).waitFor();
+      await page.getByLabel("Item").fill("Rice");
+      await page.getByRole("button", { name: "Add", exact: true }).click();
+      await page.getByRole("button", { name: "Reverse Rice" }).waitFor();
+      await page.getByRole("button", { name: "Reverse Coffee" }).click();
+      await page.getByText("(reversal)").waitFor({ state: "visible" });
+    },
+  },
+  {
+    name: "batch-add-create-offer",
+    seed: [EDITABLE_ITEM],
+    route: "/batch/add",
+    interactions: async (page) => {
+      await page.getByLabel("Item").fill("Lentils");
+      await page
+        .getByRole("button", { name: "Add “Lentils” as a new item" })
+        .waitFor({ state: "visible" });
+    },
+  },
+  {
+    name: "batch-remove-no-match",
+    seed: [EDITABLE_ITEM],
+    route: "/batch/remove",
+    interactions: async (page) => {
+      await page.getByLabel("Item").fill("Lentils");
+      await page.getByRole("button", { name: "Remove", exact: true }).click();
+      await page
+        .getByText("No item matches “Lentils”.")
+        .waitFor({ state: "visible" });
+    },
+  },
+
   { name: "account", seed: [], route: "/account" },
 
   {
