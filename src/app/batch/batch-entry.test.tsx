@@ -130,19 +130,19 @@ describe("BatchEntry", () => {
     ).toBeDisabled();
   });
 
-  it("offers to create an unknown name in add mode, and creates it on commit", async () => {
+  it("creates an unknown name in add mode when its offer is selected", async () => {
     createBatchItemMock.mockResolvedValue(
-      ok("lentils", "Lentils", "count", "1", "1"),
+      ok("lentils", "Lentils", "count", "2", "2"),
     );
     renderBatch("add");
 
+    fireEvent.change(quantityField(), { target: { value: "2" } });
     typeItem("Lentils");
     fireEvent.mouseDown(
       screen.getByRole("button", { name: "Add “Lentils” as a new item" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
-    expect(createBatchItemMock).toHaveBeenCalledWith("Lentils", "1");
+    expect(createBatchItemMock).toHaveBeenCalledWith("Lentils", "2");
     expect(adjustBatchItemMock).not.toHaveBeenCalled();
     await within(await sessionLog()).findByText("Lentils");
   });
@@ -173,6 +173,21 @@ describe("BatchEntry", () => {
     );
     expect(adjustBatchItemMock).not.toHaveBeenCalled();
     expect(createBatchItemMock).not.toHaveBeenCalled();
+  });
+
+  it("reports a removal that removed nothing instead of logging it", async () => {
+    adjustBatchItemMock.mockResolvedValue(ok("rice", "Rice", "kg", "0", "4"));
+    renderBatch("remove");
+
+    selectItem("Rice");
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Nothing removed — Rice has no unassigned stock.",
+    );
+    expect(
+      screen.queryByRole("list", { name: "This session" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a server-side error inline and keeps the row for correction", async () => {

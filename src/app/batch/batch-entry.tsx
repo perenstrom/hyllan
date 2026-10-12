@@ -10,7 +10,11 @@ import {
   type BatchEntryChange,
   type BatchEntryResult,
 } from "./actions";
-import { BatchEntryRow, type BatchItemOption } from "./batch-entry-row";
+import {
+  BatchEntryRow,
+  type BatchCommitTarget,
+  type BatchItemOption,
+} from "./batch-entry-row";
 import { formatQuantity } from "@/lib/pantry-item";
 
 export type BatchDirection = "add" | "remove";
@@ -91,7 +95,7 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
   }
 
   async function commit(
-    target: { itemId: string } | { newItemName: string },
+    target: BatchCommitTarget,
     quantity: string,
   ): Promise<string | null> {
     const result = await run(() =>
@@ -104,6 +108,12 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
     );
     if (!result.ok) {
       return result.error;
+    }
+    // Batch entry only removes from the unassigned bucket, so an item whose
+    // stock all sits at Locations (or is already at zero there) clamps to a
+    // no-op — say so rather than logging a "+0" that reads like success.
+    if (Number(result.entry.delta) === 0) {
+      return `Nothing removed — ${result.entry.itemName} has no unassigned stock.`;
     }
     record(result.entry, { isReversal: false });
     return null;

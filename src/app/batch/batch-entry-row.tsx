@@ -17,7 +17,7 @@ export type BatchItemOption = {
   quantity: string;
 };
 
-type CommitTarget = { itemId: string } | { newItemName: string };
+export type BatchCommitTarget = { itemId: string } | { newItemName: string };
 
 type Props = {
   items: BatchItemOption[];
@@ -26,7 +26,10 @@ type Props = {
   actionLabel: string;
   pending: boolean;
   // Resolves to an error message to show inline, or null on success.
-  onCommit: (target: CommitTarget, quantity: string) => Promise<string | null>;
+  onCommit: (
+    target: BatchCommitTarget,
+    quantity: string,
+  ) => Promise<string | null>;
 };
 
 const DEFAULT_QUANTITY = "1";
@@ -83,7 +86,7 @@ export function BatchEntryRow({
     }
 
     const target = items.find((item) => item.id === selectedId) ?? exactMatch;
-    let commitTarget: CommitTarget;
+    let commitTarget: BatchCommitTarget;
     if (target) {
       commitTarget = { itemId: target.id };
     } else if (allowCreate) {
@@ -160,7 +163,7 @@ export function BatchEntryRow({
                 <li>
                   <button
                     type="button"
-                    onMouseDown={() => setOpen(false)}
+                    onMouseDown={() => void commit()}
                     className="block w-full px-3 py-1.5 text-left text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
                   >
                     Add &ldquo;{trimmed}&rdquo; as a new item
