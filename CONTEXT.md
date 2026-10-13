@@ -16,7 +16,7 @@ A household-scoped mapping from a scanned barcode's value to one of its pantry i
 _Avoid_: barcode, product code, UPC, EAN, GTIN
 
 **Quantity**:
-The decimal amount of a pantry item a household currently has, shown as a single total but tracked as the sum of that item's amounts across its Locations. Zero is valid and means the item is out of stock but still tracked; negative values are invalid. Carries no unit-conversion behavior — see Unit. Incrementing/decrementing acts on a Location's amount, not on the item's total directly.
+The decimal amount of a pantry item a household currently has, shown as a single total but tracked as the sum of that item's amounts across its Locations. Zero is valid and means the item is still tracked with none on hand (Out of stock or Empty, depending on its minimum quantity); negative values are invalid. Carries no unit-conversion behavior — see Unit. Incrementing/decrementing acts on a Location's amount, not on the item's total directly.
 
 **Location**:
 A place within a household's pantry (e.g. "Pantry", "Garage fridge") that a pantry item's quantity can be broken out across. Household-managed: a household creates, renames, and deletes its own locations rather than choosing from a fixed list. Identified within its household by `name`, case-insensitively, same rule as Pantry item — a household cannot have two locations with the same name. Assigning a location to an item is optional — an item's quantity can sit in an implicit unassigned bucket with no Location at all. An item can carry at most one quantity per Location (no duplicate rows for the same item/Location pair). Deleting a Location folds any quantity it held back into the owning item's unassigned bucket rather than discarding it.
@@ -27,11 +27,25 @@ A household-initiated pass over a single Location's pantry items, correcting eac
 _Avoid_: inventory count, audit, reconciliation, stock entry
 
 **Minimum quantity**:
-An optional, per-pantry-item amount in the item's own `unit` (see Unit): the least the household wants to have on hand, so an item is fine at exactly its minimum and needs restocking only once its quantity drops below it. Setting one says "I restock this"; leaving it unset says the household doesn't restock this item on a schedule, so it never needs restocking however low it runs. Determines Low stock, below.
+An optional, per-pantry-item positive amount in the item's own `unit` (see Unit): the least the household wants to have on hand, so an item is fine at exactly its minimum and needs restocking only once its quantity drops below it. Setting one says "I restock this"; leaving it unset says the household doesn't restock this item on a schedule, so it never needs restocking however low it runs. Determines Low stock, below.
 _Avoid_: reorder point, reorder threshold, par level
 
+**Stock status**:
+Whether a pantry item needs restocking, derived from its quantity and minimum quantity — exactly one of In stock, Low stock, Out of stock, or Empty. Answers "do I need to restock this?", not "how much do I have?".
+_Avoid_: stock level, stock state
+
 **Low stock**:
-The state of a pantry item whose quantity is greater than zero but at or below its minimum quantity. Mutually exclusive with out of stock (quantity exactly zero) by construction — an item is never both; a zeroed item is out of stock only, regardless of what its minimum quantity is set to. Items with no minimum quantity set are never low stock.
+The stock status of a pantry item whose quantity is greater than zero but below its minimum quantity — the household restocks it and is running short. Items with no minimum quantity set are never low stock.
+
+**Out of stock**:
+The stock status of a pantry item whose quantity is zero and that has a minimum quantity set — the household restocks it and has run out. More urgent than Low stock, and never both.
+
+**Empty**:
+The stock status of a pantry item whose quantity is zero and that has no minimum quantity set — none on hand, but the household doesn't restock it on a schedule, so nothing needs doing.
+_Avoid_: out of stock (reserved for items with a minimum quantity)
+
+**In stock**:
+The stock status of a pantry item that is none of the above: quantity at or above its minimum quantity, or above zero with no minimum quantity set.
 
 **Unit**:
 A display-only label attached to a pantry item's quantity (count, g, kg, ml, l, box, bag, pack — defaults to count). Purely descriptive: Hyllan does no conversion or normalization between units. Not to be confused with a unit of measure in the metrological sense.
