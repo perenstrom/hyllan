@@ -27,7 +27,7 @@ A household-initiated pass over a single Location's pantry items, correcting eac
 _Avoid_: inventory count, audit, reconciliation, stock entry
 
 **Minimum quantity**:
-An optional, per-pantry-item threshold in the item's own `unit` (see Unit), set by the household to mark when they consider that item low. Unset (not zero — zero already means out of stock) disables low-stock tracking for that item entirely. Determines Low stock, below.
+An optional, per-pantry-item amount in the item's own `unit` (see Unit): the least the household wants to have on hand, so an item is fine at exactly its minimum and needs restocking only once its quantity drops below it. Setting one says "I restock this"; leaving it unset says the household doesn't restock this item on a schedule, so it never needs restocking however low it runs. Determines Low stock, below.
 _Avoid_: reorder point, reorder threshold, par level
 
 **Low stock**:
