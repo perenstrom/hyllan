@@ -150,17 +150,18 @@ export function parsePantryItemInput(
     return { ok: false, error: "Choose a valid unit." };
   }
 
-  // Blank input leaves low-stock tracking off (CONTEXT.md "Minimum
-  // quantity") rather than being rejected — only a non-blank, invalid value
-  // is a validation error.
+  // Blank input leaves the minimum unset (CONTEXT.md "Minimum quantity")
+  // rather than being rejected — only a non-blank, invalid value is a
+  // validation error. Zero is rejected (PER-325): "the least you want on
+  // hand" of nothing means you don't restock it, which is what unset says.
   const rawMinimumQuantity = formData.get("minimumQuantity");
   let minimumQuantity: string | null = null;
   if (typeof rawMinimumQuantity === "string" && rawMinimumQuantity.trim()) {
     minimumQuantity = parseQuantity(rawMinimumQuantity);
-    if (minimumQuantity === null) {
+    if (minimumQuantity === null || Number(minimumQuantity) === 0) {
       return {
         ok: false,
-        error: "Minimum quantity must be zero or a positive number.",
+        error: "Minimum quantity must be a positive number.",
       };
     }
   }
@@ -196,24 +197,34 @@ export function parsePantryItemInput(
   };
 }
 
-export type PantryItemStockStatus = "in-stock" | "low-stock" | "out-of-stock";
+export type PantryItemStockStatus =
+  "in-stock" | "low-stock" | "out-of-stock" | "empty";
 
-// Mutually exclusive by construction (CONTEXT.md "Low stock"): a zeroed
-// item is out of stock only, regardless of its minimum quantity, so the
-// zero check comes first. An item with no minimum quantity set is never
-// low stock.
+// Answers "do I need to restock this?" (CONTEXT.md "Stock status", ADR 0004
+// as amended by PER-325) — mutually exclusive by construction. A zeroed
+// item is out of stock only if the household restocks it (a minimum is
+// set), otherwise merely empty; at exactly the minimum is still in stock.
 export function getPantryItemStockStatus(
   quantity: string,
   minimumQuantity: string | null,
 ): PantryItemStockStatus {
   if (Number(quantity) === 0) {
-    return "out-of-stock";
+    return minimumQuantity === null ? "empty" : "out-of-stock";
   }
-  if (minimumQuantity !== null && Number(quantity) <= Number(minimumQuantity)) {
+  if (minimumQuantity !== null && Number(quantity) < Number(minimumQuantity)) {
     return "low-stock";
   }
   return "in-stock";
 }
+
+// The user-facing name of each status, shared by the row's sr-only label
+// and the status filter's checkboxes.
+export const STOCK_STATUS_LABELS: Record<PantryItemStockStatus, string> = {
+  "in-stock": "In stock",
+  "low-stock": "Low stock",
+  "out-of-stock": "Out of stock",
+  empty: "Empty",
+};
 
 export type PantryStatusFilter = Record<PantryItemStockStatus, boolean>;
 
@@ -221,14 +232,46 @@ export const DEFAULT_STATUS_FILTER: PantryStatusFilter = {
   "in-stock": true,
   "low-stock": true,
   "out-of-stock": true,
+  empty: true,
 };
 
 export function isDefaultStatusFilter(filter: PantryStatusFilter): boolean {
-  return filter["in-stock"] && filter["low-stock"] && filter["out-of-stock"];
+  return Object.values(filter).every(Boolean);
 }
 
 export function activeStatusFilterCount(filter: PantryStatusFilter): number {
   return Object.values(filter).filter(Boolean).length;
+}
+
+// Restores a status filter persisted to localStorage, falling back to the
+// default for anything unreadable. A filter saved before PER-325 has no
+// "empty" key — its three values are kept and Empty starts checked, rather
+// than discarding the household's choice.
+export function parseStoredStatusFilter(
+  raw: string | null,
+): PantryStatusFilter {
+  if (!raw) {
+    return DEFAULT_STATUS_FILTER;
+  }
+  let parsed: Partial<Record<PantryItemStockStatus, unknown>> | null;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return DEFAULT_STATUS_FILTER;
+  }
+  if (
+    typeof parsed?.["in-stock"] !== "boolean" ||
+    typeof parsed["low-stock"] !== "boolean" ||
+    typeof parsed["out-of-stock"] !== "boolean"
+  ) {
+    return DEFAULT_STATUS_FILTER;
+  }
+  return {
+    "in-stock": parsed["in-stock"],
+    "low-stock": parsed["low-stock"],
+    "out-of-stock": parsed["out-of-stock"],
+    empty: typeof parsed.empty === "boolean" ? parsed.empty : true,
+  };
 }
 
 type StatusFilterableItem = {

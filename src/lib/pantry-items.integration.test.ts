@@ -294,16 +294,19 @@ describe("pantry-items", () => {
     expect(merged.minimumQuantity).toBe("1");
   });
 
-  it("enforces the minimum-quantity non-negative check constraint at the database level", async () => {
-    await expect(
-      db.insert(pantryItems).values({
-        householdId,
-        name: "Rice",
-        unit: "kg",
-        minimumQuantity: "-1",
-      }),
-    ).rejects.toThrow();
-  });
+  it.each(["-1", "0"])(
+    "enforces the minimum-quantity positive check constraint at the database level (%s)",
+    async (minimumQuantity) => {
+      await expect(
+        db.insert(pantryItems).values({
+          householdId,
+          name: "Rice",
+          unit: "kg",
+          minimumQuantity,
+        }),
+      ).rejects.toThrow();
+    },
+  );
 
   it("lists items for a household ordered by creation", async () => {
     await addPantryItem(db, householdId, {

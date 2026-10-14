@@ -56,9 +56,10 @@ export const pantryItems = pgTable(
       .references(() => households.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     unit: pantryItemUnitEnum("unit").notNull().default("count"),
-    // Unset (null, not zero) disables low-stock tracking for the item
-    // (CONTEXT.md "Minimum quantity") — in the item's own `unit`, same
-    // numeric shape as a location's quantity (see itemLocations below).
+    // The least the household wants on hand (CONTEXT.md "Minimum
+    // quantity") — unset (null) means the item isn't restocked. In the
+    // item's own `unit`, same numeric shape as a location's quantity (see
+    // itemLocations below).
     minimumQuantity: numeric("minimum_quantity"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -73,10 +74,11 @@ export const pantryItems = pgTable(
       sql`lower(${table.name})`,
     ),
     // NULL passes a CHECK constraint unmodified, so this only constrains
-    // the column once a household actually sets a threshold.
+    // the column once a household actually sets a minimum. Zero is
+    // rejected (PER-325) — "unset" is how you say you don't restock it.
     check(
-      "pantry_items_minimum_quantity_non_negative",
-      sql`${table.minimumQuantity} >= 0`,
+      "pantry_items_minimum_quantity_positive",
+      sql`${table.minimumQuantity} > 0`,
     ),
   ],
 );

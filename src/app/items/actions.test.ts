@@ -127,6 +127,18 @@ describe("addItem", () => {
     expect(addPantryItemMock).not.toHaveBeenCalled();
   });
 
+  it("rejects a minimum quantity of zero without touching the database", async () => {
+    const state = await addItem(
+      undefined,
+      formDataOf({ name: "Rice", quantity: "2", minimumQuantity: "0" }),
+    );
+
+    expect(state).toEqual({
+      error: "Minimum quantity must be a positive number.",
+    });
+    expect(addPantryItemMock).not.toHaveBeenCalled();
+  });
+
   it("redirects to login when there is no session", async () => {
     getClaimsMock.mockResolvedValue({ data: null });
 
@@ -275,6 +287,19 @@ describe("editItem", () => {
     );
 
     expect(state).toEqual({ error: "Name is required." });
+    expect(updatePantryItemMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a minimum quantity of zero without touching the database", async () => {
+    const state = await editItem(
+      "item-1",
+      undefined,
+      formDataOf({ name: "Rice", quantity: "2", minimumQuantity: "0" }),
+    );
+
+    expect(state).toEqual({
+      error: "Minimum quantity must be a positive number.",
+    });
     expect(updatePantryItemMock).not.toHaveBeenCalled();
   });
 

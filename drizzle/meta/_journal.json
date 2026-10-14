@@ -36,6 +36,13 @@
       "when": 1787257366430,
       "tag": "0004_elite_skreet",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792001709924,
+      "tag": "0005_minimum_quantity_positive",
+      "breakpoints": true
     }
   ]
 }

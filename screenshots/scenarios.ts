@@ -43,6 +43,14 @@ const OUT_OF_STOCK_ITEM: AddPantryItemInput = {
   name: "Rice",
   quantity: "0",
   unit: "kg",
+  minimumQuantity: "1",
+};
+
+// Zero with no minimum set — Empty, not Out of stock (PER-325).
+const EMPTY_ITEM: AddPantryItemInput = {
+  name: "Saffron",
+  quantity: "0",
+  unit: "g",
   minimumQuantity: null,
 };
 
@@ -80,6 +88,7 @@ export const SCENARIOS: Scenario[] = [
   { name: "pantry-empty", seed: [], route: "/" },
   { name: "pantry-low-stock", seed: [LOW_STOCK_ITEM], route: "/" },
   { name: "pantry-out-of-stock", seed: [OUT_OF_STOCK_ITEM], route: "/" },
+  { name: "pantry-empty-item", seed: [EMPTY_ITEM], route: "/" },
 
   { name: "add-item", seed: [], route: "/items/new" },
   {
