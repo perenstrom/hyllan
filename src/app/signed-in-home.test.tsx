@@ -931,6 +931,28 @@ describe("SignedInHome", () => {
       ).toBeInTheDocument();
     });
 
+    it("gives a tinted row the same screen-reader-only status label as By item", async () => {
+      const user = userEvent.setup();
+      renderHome({
+        items: [
+          itemRow({
+            quantity: "1",
+            minimumQuantity: "2",
+            buckets: [
+              { locationId: PANTRY_ID, locationName: "Pantry", quantity: "1" },
+            ],
+          }),
+        ],
+        locations: [{ id: PANTRY_ID, name: "Pantry" }],
+      });
+
+      await user.click(screen.getByRole("button", { name: "By location" }));
+
+      const row = screen.getByRole("row", { name: /Rice/ });
+      expect(row).toHaveClass("bg-amber-100");
+      expect(within(row).getByText("Low stock")).toHaveClass("sr-only");
+    });
+
     it("omits empty sections", async () => {
       const user = userEvent.setup();
       renderHome({

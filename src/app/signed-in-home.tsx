@@ -307,6 +307,15 @@ function stockStatusOf(item: PantryItemWithLocations) {
   return getPantryItemStockStatus(item.quantity, item.minimumQuantity);
 }
 
+// Always present for a tinted row, in both views, so assistive tech gets
+// what the tint conveys visually.
+function StockStatusLabel({ status }: { status: PantryItemStockStatus }) {
+  if (status === "in-stock") {
+    return null;
+  }
+  return <span className="sr-only"> {STOCK_STATUS_LABELS[status]}</span>;
+}
+
 export function SignedInHome({ items, locations }: Props) {
   const [optimisticItems, addOptimisticUpdate] = useOptimistic(
     items,
@@ -620,14 +629,7 @@ function ItemGroupedTable({
                         <span className="w-3.5" />
                       )}
                       {item.name}
-                      {/* Always present for a tinted row, so assistive tech
-                          gets what the tint conveys visually. */}
-                      {status !== "in-stock" && (
-                        <span className="sr-only">
-                          {" "}
-                          {STOCK_STATUS_LABELS[status]}
-                        </span>
-                      )}
+                      <StockStatusLabel status={status} />
                     </div>
                   </td>
                   <td className="px-2 py-2 sm:px-4">
@@ -760,28 +762,34 @@ function LocationGroupedTables({
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(({ item, bucket }) => (
-                    <tr
-                      key={item.id}
-                      className={`border-b border-zinc-100 last:border-0 dark:border-zinc-900 ${ROW_CLASS_BY_STATUS[stockStatusOf(item)]}`}
-                    >
-                      <td className="px-2 py-2 sm:px-4">{item.name}</td>
-                      <td className="px-2 py-2 sm:px-4">
-                        {formatQuantity(bucket.quantity, item.unit)}
-                      </td>
-                      <td className="px-2 py-2 sm:px-4">
-                        <BucketActions
-                          itemId={item.id}
-                          itemName={item.name}
-                          bucket={bucket}
-                          ariaSuffix={` at ${sectionName}`}
-                          showOverflow
-                          onIncrement={onIncrement}
-                          onDecrement={onDecrement}
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                  {rows.map(({ item, bucket }) => {
+                    const status = stockStatusOf(item);
+                    return (
+                      <tr
+                        key={item.id}
+                        className={`border-b border-zinc-100 last:border-0 dark:border-zinc-900 ${ROW_CLASS_BY_STATUS[status]}`}
+                      >
+                        <td className="px-2 py-2 sm:px-4">
+                          {item.name}
+                          <StockStatusLabel status={status} />
+                        </td>
+                        <td className="px-2 py-2 sm:px-4">
+                          {formatQuantity(bucket.quantity, item.unit)}
+                        </td>
+                        <td className="px-2 py-2 sm:px-4">
+                          <BucketActions
+                            itemId={item.id}
+                            itemName={item.name}
+                            bucket={bucket}
+                            ariaSuffix={` at ${sectionName}`}
+                            showOverflow
+                            onIncrement={onIncrement}
+                            onDecrement={onDecrement}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
