@@ -13,6 +13,7 @@ import {
   nextPantrySortState,
   normalizePantryItemName,
   parsePantryItemInput,
+  parseStoredStatusFilter,
   parseQuantity,
   sortPantryItems,
 } from "./pantry-item";
@@ -409,27 +410,50 @@ describe("parsePantryItemInput", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: "Minimum quantity must be zero or a positive number.",
+      error: "Minimum quantity must be a positive number.",
     });
   });
+
+  it.each(["0", "0.0", " 0 "])(
+    "rejects a minimum quantity of zero (%j)",
+    (minimumQuantity) => {
+      const result = parsePantryItemInput(
+        formDataOf({
+          name: "Rice",
+          quantity: "2",
+          unit: "kg",
+          minimumQuantity,
+        }),
+      );
+
+      expect(result).toEqual({
+        ok: false,
+        error: "Minimum quantity must be a positive number.",
+      });
+    },
+  );
 });
 
 describe("getPantryItemStockStatus", () => {
-  it("is out of stock when quantity is zero, regardless of minimum quantity", () => {
-    expect(getPantryItemStockStatus("0", null)).toBe("out-of-stock");
-    expect(getPantryItemStockStatus("0", "5")).toBe("out-of-stock");
+  it("is empty when quantity is zero and there is no minimum quantity set", () => {
+    expect(getPantryItemStockStatus("0", null)).toBe("empty");
   });
 
-  it("is in stock when there is no minimum quantity set", () => {
+  it("is out of stock when quantity is zero and a minimum quantity is set", () => {
+    expect(getPantryItemStockStatus("0", "2")).toBe("out-of-stock");
+  });
+
+  it("is in stock when quantity is positive and there is no minimum quantity set", () => {
     expect(getPantryItemStockStatus("1", null)).toBe("in-stock");
   });
 
-  it("is low stock when quantity is at or below a set minimum quantity", () => {
-    expect(getPantryItemStockStatus("2", "2")).toBe("low-stock");
+  it("is low stock when quantity is strictly below a set minimum quantity", () => {
     expect(getPantryItemStockStatus("1", "2")).toBe("low-stock");
+    expect(getPantryItemStockStatus("0.5", "1")).toBe("low-stock");
   });
 
-  it("is in stock when quantity is above a set minimum quantity", () => {
+  it("is in stock when quantity is at or above a set minimum quantity", () => {
+    expect(getPantryItemStockStatus("2", "2")).toBe("in-stock");
     expect(getPantryItemStockStatus("3", "2")).toBe("in-stock");
   });
 });
@@ -437,14 +461,14 @@ describe("getPantryItemStockStatus", () => {
 describe("isDefaultStatusFilter / activeStatusFilterCount", () => {
   it("treats the all-checked filter as default", () => {
     expect(isDefaultStatusFilter(DEFAULT_STATUS_FILTER)).toBe(true);
-    expect(activeStatusFilterCount(DEFAULT_STATUS_FILTER)).toBe(3);
+    expect(activeStatusFilterCount(DEFAULT_STATUS_FILTER)).toBe(4);
   });
 
   it("treats a partially-unchecked filter as non-default", () => {
-    const filter = { ...DEFAULT_STATUS_FILTER, "low-stock": false };
+    const filter = { ...DEFAULT_STATUS_FILTER, empty: false };
 
     expect(isDefaultStatusFilter(filter)).toBe(false);
-    expect(activeStatusFilterCount(filter)).toBe(2);
+    expect(activeStatusFilterCount(filter)).toBe(3);
   });
 
   it("counts zero when every box is unchecked", () => {
@@ -452,17 +476,54 @@ describe("isDefaultStatusFilter / activeStatusFilterCount", () => {
       "in-stock": false,
       "low-stock": false,
       "out-of-stock": false,
+      empty: false,
     };
 
     expect(activeStatusFilterCount(filter)).toBe(0);
   });
 });
 
+describe("parseStoredStatusFilter", () => {
+  it("falls back to the default for missing or malformed input", () => {
+    expect(parseStoredStatusFilter(null)).toEqual(DEFAULT_STATUS_FILTER);
+    expect(parseStoredStatusFilter("not json")).toEqual(DEFAULT_STATUS_FILTER);
+    expect(parseStoredStatusFilter("null")).toEqual(DEFAULT_STATUS_FILTER);
+    expect(parseStoredStatusFilter('{"in-stock":true}')).toEqual(
+      DEFAULT_STATUS_FILTER,
+    );
+  });
+
+  it("restores a stored four-key filter", () => {
+    const stored = {
+      "in-stock": true,
+      "low-stock": false,
+      "out-of-stock": true,
+      empty: false,
+    };
+
+    expect(parseStoredStatusFilter(JSON.stringify(stored))).toEqual(stored);
+  });
+
+  it("migrates a stored three-key filter, keeping its values and checking Empty", () => {
+    const legacy = {
+      "in-stock": false,
+      "low-stock": true,
+      "out-of-stock": false,
+    };
+
+    expect(parseStoredStatusFilter(JSON.stringify(legacy))).toEqual({
+      ...legacy,
+      empty: true,
+    });
+  });
+});
+
 describe("filterPantryItemsByStatus", () => {
   const inStock = { id: "1", quantity: "5", minimumQuantity: null };
   const lowStock = { id: "2", quantity: "1", minimumQuantity: "2" };
-  const outOfStock = { id: "3", quantity: "0", minimumQuantity: null };
-  const items = [inStock, lowStock, outOfStock];
+  const outOfStock = { id: "3", quantity: "0", minimumQuantity: "2" };
+  const empty = { id: "4", quantity: "0", minimumQuantity: null };
+  const items = [inStock, lowStock, outOfStock, empty];
 
   it("returns every item for the default (all-checked) filter", () => {
     expect(filterPantryItemsByStatus(items, DEFAULT_STATUS_FILTER)).toEqual(
@@ -476,6 +537,17 @@ describe("filterPantryItemsByStatus", () => {
     expect(filterPantryItemsByStatus(items, filter)).toEqual([
       inStock,
       outOfStock,
+      empty,
+    ]);
+  });
+
+  it("hides only empty items when Empty is unchecked", () => {
+    const filter = { ...DEFAULT_STATUS_FILTER, empty: false };
+
+    expect(filterPantryItemsByStatus(items, filter)).toEqual([
+      inStock,
+      lowStock,
+      outOfStock,
     ]);
   });
 
@@ -484,6 +556,7 @@ describe("filterPantryItemsByStatus", () => {
       "in-stock": false,
       "low-stock": false,
       "out-of-stock": false,
+      empty: false,
     };
 
     expect(filterPantryItemsByStatus(items, filter)).toEqual([]);

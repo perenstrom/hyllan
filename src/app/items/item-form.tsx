@@ -139,8 +139,8 @@ export function ItemForm({
             className="h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
           />
           <p className="text-xs text-zinc-500 dark:text-zinc-500">
-            Same unit as quantity. Leave blank to turn off low-stock tracking
-            for this item.
+            The least you want on hand, in the same unit as quantity. Leave
+            blank if you don&apos;t restock this item.
           </p>
         </div>
 

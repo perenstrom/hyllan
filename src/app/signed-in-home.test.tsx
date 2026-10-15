@@ -102,29 +102,44 @@ describe("SignedInHome", () => {
     expect(screen.getByRole("cell", { name: "6" })).toBeInTheDocument();
   });
 
-  it("keeps a zero-quantity item visible, with a screen-reader-only out-of-stock label", () => {
-    renderHome({ items: [itemRow({ quantity: "0" })] });
+  it("keeps a zero-quantity item with a minimum visible, with a screen-reader-only out-of-stock label", () => {
+    renderHome({ items: [itemRow({ quantity: "0", minimumQuantity: "2" })] });
 
     expect(screen.getByText("Rice")).toBeInTheDocument();
     expect(screen.getByText("Out of stock")).toHaveClass("sr-only");
+    expect(screen.queryByText("Low stock")).not.toBeInTheDocument();
+    expect(screen.queryByText("Empty")).not.toBeInTheDocument();
   });
 
-  it("tints an out-of-stock row's background instead of showing a visible label", () => {
-    renderHome({ items: [itemRow({ quantity: "0" })] });
+  it("tints an out-of-stock row red instead of showing a visible label", () => {
+    renderHome({ items: [itemRow({ quantity: "0", minimumQuantity: "2" })] });
 
     const row = screen.getByText("Rice").closest("tr");
     expect(row).toHaveClass("bg-red-100", "dark:bg-red-950");
+    expect(row).not.toHaveClass("bg-amber-100");
   });
 
-  it("does not label or tint an in-stock item as out of stock", () => {
-    renderHome({ items: [itemRow()] });
+  it("tints a zero-quantity item with no minimum grey, labelled Empty rather than Out of stock", () => {
+    renderHome({ items: [itemRow({ quantity: "0", minimumQuantity: null })] });
 
+    expect(screen.getByText("Empty")).toHaveClass("sr-only");
     expect(screen.queryByText("Out of stock")).not.toBeInTheDocument();
     const row = screen.getByText("Rice").closest("tr");
+    expect(row).toHaveClass("bg-zinc-100", "dark:bg-zinc-900");
     expect(row).not.toHaveClass("bg-red-100");
   });
 
-  it("tints a low-stock row amber with a screen-reader-only label, when quantity is at or below its minimum", () => {
+  it("does not label or tint an in-stock item", () => {
+    renderHome({ items: [itemRow()] });
+
+    expect(screen.queryByText("Out of stock")).not.toBeInTheDocument();
+    expect(screen.queryByText("Low stock")).not.toBeInTheDocument();
+    expect(screen.queryByText("Empty")).not.toBeInTheDocument();
+    const row = screen.getByText("Rice").closest("tr");
+    expect(row).not.toHaveClass("bg-red-100", "bg-amber-100", "bg-zinc-100");
+  });
+
+  it("tints a low-stock row amber with a screen-reader-only label, when quantity is below its minimum", () => {
     renderHome({
       items: [itemRow({ quantity: "1", minimumQuantity: "2" })],
     });
@@ -134,15 +149,13 @@ describe("SignedInHome", () => {
     expect(row).toHaveClass("bg-amber-100", "dark:bg-amber-950");
   });
 
-  it("treats out of stock (quantity zero) as taking precedence over low stock, never both", () => {
+  it("treats an item at exactly its minimum as in stock", () => {
     renderHome({
-      items: [itemRow({ quantity: "0", minimumQuantity: "2" })],
+      items: [itemRow({ quantity: "2", minimumQuantity: "2" })],
     });
 
-    expect(screen.getByText("Out of stock")).toHaveClass("sr-only");
     expect(screen.queryByText("Low stock")).not.toBeInTheDocument();
     const row = screen.getByText("Rice").closest("tr");
-    expect(row).toHaveClass("bg-red-100");
     expect(row).not.toHaveClass("bg-amber-100");
   });
 
@@ -466,7 +479,7 @@ describe("SignedInHome", () => {
       screen.getByRole("button", { name: "Decrease Rice quantity" }),
     );
 
-    expect(await screen.findByText("Out of stock")).toHaveClass("sr-only");
+    expect(await screen.findByText("Empty")).toHaveClass("sr-only");
 
     resolveDecrement();
   });
@@ -627,6 +640,12 @@ describe("SignedInHome", () => {
           id: "33333333-3333-3333-3333-333333333333",
           name: "Out of stock item",
           quantity: "0",
+          minimumQuantity: "2",
+        }),
+        itemRow({
+          id: "44444444-4444-4444-4444-444444444444",
+          name: "Empty item",
+          quantity: "0",
           minimumQuantity: null,
         }),
       ];
@@ -644,7 +663,7 @@ describe("SignedInHome", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("shows every item by default, with all three boxes checked", () => {
+    it("shows every item by default, with all four boxes checked", () => {
       renderHome({ items: statusItems() });
       openStatusDropdown();
 
@@ -653,9 +672,11 @@ describe("SignedInHome", () => {
       expect(
         screen.getByRole("checkbox", { name: "Out of stock" }),
       ).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Empty" })).toBeChecked();
       expect(screen.getByText("In stock item")).toBeInTheDocument();
       expect(screen.getByText("Low stock item")).toBeInTheDocument();
       expect(screen.getByText("Out of stock item")).toBeInTheDocument();
+      expect(screen.getByText("Empty item")).toBeInTheDocument();
     });
 
     it("hides rows whose status is unchecked and shows the trigger's active count", () => {
@@ -667,8 +688,24 @@ describe("SignedInHome", () => {
       expect(screen.queryByText("Low stock item")).not.toBeInTheDocument();
       expect(screen.getByText("In stock item")).toBeInTheDocument();
       expect(screen.getByText("Out of stock item")).toBeInTheDocument();
+      expect(screen.getByText("Empty item")).toBeInTheDocument();
       expect(
-        screen.getByRole("button", { name: "Status (2/3)" }),
+        screen.getByRole("button", { name: "Status (3/4)" }),
+      ).toBeInTheDocument();
+    });
+
+    it("hides only empty rows when Empty is unchecked", () => {
+      renderHome({ items: statusItems() });
+      openStatusDropdown();
+
+      fireEvent.click(screen.getByRole("checkbox", { name: "Empty" }));
+
+      expect(screen.queryByText("Empty item")).not.toBeInTheDocument();
+      expect(screen.getByText("In stock item")).toBeInTheDocument();
+      expect(screen.getByText("Low stock item")).toBeInTheDocument();
+      expect(screen.getByText("Out of stock item")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Status (3/4)" }),
       ).toBeInTheDocument();
     });
 
@@ -679,6 +716,7 @@ describe("SignedInHome", () => {
       fireEvent.click(screen.getByRole("checkbox", { name: "In stock" }));
       fireEvent.click(screen.getByRole("checkbox", { name: "Low stock" }));
       fireEvent.click(screen.getByRole("checkbox", { name: "Out of stock" }));
+      fireEvent.click(screen.getByRole("checkbox", { name: "Empty" }));
 
       expect(
         screen.getByText("No items match the current filter."),
@@ -696,8 +734,29 @@ describe("SignedInHome", () => {
 
       expect(screen.queryByText("Low stock item")).not.toBeInTheDocument();
       expect(
-        screen.getByRole("button", { name: "Status (2/3)" }),
+        screen.getByRole("button", { name: "Status (3/4)" }),
       ).toBeInTheDocument();
+    });
+
+    it("migrates a filter saved in the old three-key shape, keeping its values and checking Empty", () => {
+      window.localStorage.setItem(
+        "hyllan:pantry-status-filter",
+        JSON.stringify({
+          "in-stock": true,
+          "low-stock": false,
+          "out-of-stock": true,
+        }),
+      );
+
+      renderHome({ items: statusItems() });
+      openStatusDropdown();
+
+      expect(
+        screen.getByRole("checkbox", { name: "Low stock" }),
+      ).not.toBeChecked();
+      expect(screen.getByRole("checkbox", { name: "Empty" })).toBeChecked();
+      expect(screen.queryByText("Low stock item")).not.toBeInTheDocument();
+      expect(screen.getByText("Empty item")).toBeInTheDocument();
     });
 
     it("hides a row the instant an optimistic update moves it out of the active filter", async () => {
@@ -710,7 +769,7 @@ describe("SignedInHome", () => {
 
       renderHome({ items: statusItems() });
       openStatusDropdown();
-      fireEvent.click(screen.getByRole("checkbox", { name: "Out of stock" }));
+      fireEvent.click(screen.getByRole("checkbox", { name: "Empty" }));
       expect(screen.getByText("In stock item")).toBeInTheDocument();
 
       fireEvent.click(
@@ -870,6 +929,28 @@ describe("SignedInHome", () => {
       expect(
         screen.getByRole("heading", { name: "Garage fridge" }),
       ).toBeInTheDocument();
+    });
+
+    it("gives a tinted row the same screen-reader-only status label as By item", async () => {
+      const user = userEvent.setup();
+      renderHome({
+        items: [
+          itemRow({
+            quantity: "1",
+            minimumQuantity: "2",
+            buckets: [
+              { locationId: PANTRY_ID, locationName: "Pantry", quantity: "1" },
+            ],
+          }),
+        ],
+        locations: [{ id: PANTRY_ID, name: "Pantry" }],
+      });
+
+      await user.click(screen.getByRole("button", { name: "By location" }));
+
+      const row = screen.getByRole("row", { name: /Rice/ });
+      expect(row).toHaveClass("bg-amber-100");
+      expect(within(row).getByText("Low stock")).toHaveClass("sr-only");
     });
 
     it("omits empty sections", async () => {

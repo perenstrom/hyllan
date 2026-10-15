@@ -26,6 +26,24 @@ describe("StatusFilterDropdown", () => {
     expect(
       screen.getByRole("checkbox", { name: "Out of stock" }),
     ).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Empty" })).toBeChecked();
+  });
+
+  it("lists the four statuses in order", async () => {
+    const user = userEvent.setup();
+    render(
+      <StatusFilterDropdown
+        filter={DEFAULT_STATUS_FILTER}
+        onChange={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Status" }));
+
+    expect(
+      screen
+        .getAllByRole("checkbox")
+        .map((checkbox) => checkbox.closest("label")?.textContent),
+    ).toEqual(["In stock", "Low stock", "Out of stock", "Empty"]);
   });
 
   it("shows a plain 'Status' label for the default (all-checked) filter", () => {
@@ -48,7 +66,7 @@ describe("StatusFilterDropdown", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Status (2/3)" }),
+      screen.getByRole("button", { name: "Status (3/4)" }),
     ).toBeInTheDocument();
   });
 
@@ -69,6 +87,7 @@ describe("StatusFilterDropdown", () => {
       "in-stock": true,
       "low-stock": true,
       "out-of-stock": false,
+      empty: true,
     });
     expect(DEFAULT_STATUS_FILTER["out-of-stock"]).toBe(true);
   });

@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react";
 import {
   activeStatusFilterCount,
   isDefaultStatusFilter,
+  STOCK_STATUS_LABELS,
   type PantryItemStockStatus,
   type PantryStatusFilter,
 } from "@/lib/pantry-item";
@@ -15,18 +16,19 @@ type Props = {
   onChange: (filter: PantryStatusFilter) => void;
 };
 
-const STATUS_OPTIONS: { status: PantryItemStockStatus; label: string }[] = [
-  { status: "in-stock", label: "In stock" },
-  { status: "low-stock", label: "Low stock" },
-  { status: "out-of-stock", label: "Out of stock" },
+const STATUS_OPTIONS: PantryItemStockStatus[] = [
+  "in-stock",
+  "low-stock",
+  "out-of-stock",
+  "empty",
 ];
 
 const PANEL_CLASS =
   "z-10 w-40 rounded-lg border border-zinc-200 bg-white p-2 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900";
 
-// Header-row dropdown offering the three status checkboxes (ADR 0004,
-// PER-251). Built on Radix's Popover primitive (ADR 0004, PER-271) rather
-// than a menu primitive — the panel holds checkboxes, not menuitems, so it
+// Header-row dropdown offering one checkbox per stock status (ADR 0004,
+// PER-251, PER-325). Built on Radix's Popover primitive (ADR 0004, PER-271)
+// rather than a menu primitive — the panel holds checkboxes, not menuitems, so it
 // isn't an ARIA `menu` widget and Popover (not DropdownMenu) is Radix's
 // primitive for a non-menu floating panel.
 export function StatusFilterDropdown({ filter, onChange }: Props) {
@@ -34,7 +36,7 @@ export function StatusFilterDropdown({ filter, onChange }: Props) {
   // default (ADR 0004, PER-251) — "Status" alone otherwise.
   const label = isDefaultStatusFilter(filter)
     ? "Status"
-    : `Status (${activeStatusFilterCount(filter)}/3)`;
+    : `Status (${activeStatusFilterCount(filter)}/${STATUS_OPTIONS.length})`;
 
   return (
     <Popover.Root>
@@ -50,7 +52,7 @@ export function StatusFilterDropdown({ filter, onChange }: Props) {
 
       <Popover.Portal>
         <Popover.Content align="end" sideOffset={8} className={PANEL_CLASS}>
-          {STATUS_OPTIONS.map(({ status, label: optionLabel }) => (
+          {STATUS_OPTIONS.map((status) => (
             <label
               key={status}
               className="flex items-center gap-2 rounded px-2 py-1.5 text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
@@ -62,7 +64,7 @@ export function StatusFilterDropdown({ filter, onChange }: Props) {
                   onChange({ ...filter, [status]: event.target.checked })
                 }
               />
-              {optionLabel}
+              {STOCK_STATUS_LABELS[status]}
             </label>
           ))}
         </Popover.Content>

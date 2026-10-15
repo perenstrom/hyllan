@@ -28,7 +28,10 @@ import {
   getPantryItemStockStatus,
   incrementQuantity,
   nextPantrySortState,
+  parseStoredStatusFilter,
   sortPantryItems,
+  STOCK_STATUS_LABELS,
+  type PantryItemStockStatus,
   type PantrySortColumn,
   type PantrySortState,
   type PantryStatusFilter,
@@ -87,6 +90,19 @@ const OUT_OF_STOCK_ROW_CLASS =
 const LOW_STOCK_ROW_CLASS =
   "bg-amber-100 text-zinc-600 dark:bg-amber-950 dark:text-zinc-300";
 
+// Same treatment again for Empty (ADR 0004, PER-325), in neutral grey since
+// an empty item isn't one the household restocks — zinc-600 on zinc-100
+// (~7:1) and zinc-300 on zinc-900 (~12:1) both clear WCAG AA.
+const EMPTY_ROW_CLASS =
+  "bg-zinc-100 text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300";
+
+const ROW_CLASS_BY_STATUS: Record<PantryItemStockStatus, string> = {
+  "in-stock": "",
+  "low-stock": LOW_STOCK_ROW_CLASS,
+  "out-of-stock": OUT_OF_STOCK_ROW_CLASS,
+  empty: EMPTY_ROW_CLASS,
+};
+
 // Batch entry's two entry points (PER-307) — outlined, so they read as
 // secondary to the header's solid "+ Add item".
 const BATCH_LINK_CLASS =
@@ -101,23 +117,9 @@ function readStoredStatusFilter(): PantryStatusFilter {
     return DEFAULT_STATUS_FILTER;
   }
   try {
-    const raw = window.localStorage.getItem(STATUS_FILTER_STORAGE_KEY);
-    if (!raw) {
-      return DEFAULT_STATUS_FILTER;
-    }
-    const parsed = JSON.parse(raw) as Partial<PantryStatusFilter> | null;
-    if (
-      typeof parsed?.["in-stock"] === "boolean" &&
-      typeof parsed?.["low-stock"] === "boolean" &&
-      typeof parsed?.["out-of-stock"] === "boolean"
-    ) {
-      return {
-        "in-stock": parsed["in-stock"],
-        "low-stock": parsed["low-stock"],
-        "out-of-stock": parsed["out-of-stock"],
-      };
-    }
-    return DEFAULT_STATUS_FILTER;
+    return parseStoredStatusFilter(
+      window.localStorage.getItem(STATUS_FILTER_STORAGE_KEY),
+    );
   } catch {
     return DEFAULT_STATUS_FILTER;
   }
@@ -301,13 +303,17 @@ function BucketActions({
   );
 }
 
-function rowStatusClassFor(item: PantryItemWithLocations) {
-  const status = getPantryItemStockStatus(item.quantity, item.minimumQuantity);
-  return status === "out-of-stock"
-    ? OUT_OF_STOCK_ROW_CLASS
-    : status === "low-stock"
-      ? LOW_STOCK_ROW_CLASS
-      : "";
+function stockStatusOf(item: PantryItemWithLocations) {
+  return getPantryItemStockStatus(item.quantity, item.minimumQuantity);
+}
+
+// Always present for a tinted row, in both views, so assistive tech gets
+// what the tint conveys visually.
+function StockStatusLabel({ status }: { status: PantryItemStockStatus }) {
+  if (status === "in-stock") {
+    return null;
+  }
+  return <span className="sr-only"> {STOCK_STATUS_LABELS[status]}</span>;
 }
 
 export function SignedInHome({ items, locations }: Props) {
@@ -592,11 +598,8 @@ function ItemGroupedTable({
             const isMulti = visibleBuckets.length > 1;
             const isOpen = isMulti && expandedIds.has(item.id);
             const soleBucket = visibleBuckets[0];
-            const status = getPantryItemStockStatus(
-              item.quantity,
-              item.minimumQuantity,
-            );
-            const rowStatusClass = rowStatusClassFor(item);
+            const status = stockStatusOf(item);
+            const rowStatusClass = ROW_CLASS_BY_STATUS[status];
 
             return (
               <Fragment key={item.id}>
@@ -626,12 +629,7 @@ function ItemGroupedTable({
                         <span className="w-3.5" />
                       )}
                       {item.name}
-                      {status === "out-of-stock" && (
-                        <span className="sr-only"> Out of stock</span>
-                      )}
-                      {status === "low-stock" && (
-                        <span className="sr-only"> Low stock</span>
-                      )}
+                      <StockStatusLabel status={status} />
                     </div>
                   </td>
                   <td className="px-2 py-2 sm:px-4">
@@ -764,28 +762,34 @@ function LocationGroupedTables({
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(({ item, bucket }) => (
-                    <tr
-                      key={item.id}
-                      className={`border-b border-zinc-100 last:border-0 dark:border-zinc-900 ${rowStatusClassFor(item)}`}
-                    >
-                      <td className="px-2 py-2 sm:px-4">{item.name}</td>
-                      <td className="px-2 py-2 sm:px-4">
-                        {formatQuantity(bucket.quantity, item.unit)}
-                      </td>
-                      <td className="px-2 py-2 sm:px-4">
-                        <BucketActions
-                          itemId={item.id}
-                          itemName={item.name}
-                          bucket={bucket}
-                          ariaSuffix={` at ${sectionName}`}
-                          showOverflow
-                          onIncrement={onIncrement}
-                          onDecrement={onDecrement}
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                  {rows.map(({ item, bucket }) => {
+                    const status = stockStatusOf(item);
+                    return (
+                      <tr
+                        key={item.id}
+                        className={`border-b border-zinc-100 last:border-0 dark:border-zinc-900 ${ROW_CLASS_BY_STATUS[status]}`}
+                      >
+                        <td className="px-2 py-2 sm:px-4">
+                          {item.name}
+                          <StockStatusLabel status={status} />
+                        </td>
+                        <td className="px-2 py-2 sm:px-4">
+                          {formatQuantity(bucket.quantity, item.unit)}
+                        </td>
+                        <td className="px-2 py-2 sm:px-4">
+                          <BucketActions
+                            itemId={item.id}
+                            itemName={item.name}
+                            bucket={bucket}
+                            ariaSuffix={` at ${sectionName}`}
+                            showOverflow
+                            onIncrement={onIncrement}
+                            onDecrement={onDecrement}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

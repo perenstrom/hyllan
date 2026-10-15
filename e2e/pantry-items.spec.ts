@@ -77,7 +77,7 @@ test("the pantry table and add-item form stay usable at a mobile width", async (
   await expect(page.getByRole("cell", { name: "2 kg" })).toBeVisible();
 
   // Crossing zero (PER-236) must not shift the row's height at this
-  // stacked/narrow breakpoint either — the out-of-stock label is
+  // stacked/narrow breakpoint either — the stock-status label is
   // screen-reader-only rather than a second visible line under the name.
   const rowBefore = await page.getByRole("row", { name: /Rice/ }).boundingBox();
   await clickAndAwaitAction(page, "Decrease Rice quantity");
@@ -102,6 +102,8 @@ test("signed-in user can adjust, edit, and delete a pantry item", async ({
   await page.getByLabel("Name").fill("Rice");
   await page.getByLabel("Quantity", { exact: true }).fill("2");
   await page.getByLabel("Unit").selectOption("kg");
+  // A minimum makes zero read as Out of stock rather than Empty (PER-325).
+  await page.getByLabel("Minimum quantity (optional)").fill("1");
   await page.getByRole("button", { name: "Add item" }).click();
   await expect(page.getByRole("cell", { name: "2 kg" })).toBeVisible();
 
