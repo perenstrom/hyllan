@@ -48,7 +48,7 @@ export function ItemPickerCombobox({ id, items, value, onChange }: Props) {
         onBlur={() => setTimeout(() => setOpen(false), 100)}
         placeholder="Search for an item"
         autoComplete="off"
-        className="h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
+        className="h-11 w-full rounded border border-zinc-300 bg-white px-3 sm:h-10 dark:border-zinc-700 dark:bg-zinc-900"
       />
 
       {open && (
@@ -58,7 +58,7 @@ export function ItemPickerCombobox({ id, items, value, onChange }: Props) {
               <button
                 type="button"
                 onMouseDown={() => select(item)}
-                className="block w-full px-3 py-1.5 text-left text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                className="block w-full px-3 py-2.5 text-left sm:py-1.5 text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
               >
                 {item.name}
               </button>

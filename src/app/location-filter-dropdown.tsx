@@ -13,7 +13,7 @@ type Props = {
 };
 
 const PANEL_CLASS =
-  "z-10 w-48 rounded-lg border border-zinc-200 bg-white p-2 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900";
+  "z-30 w-48 rounded-lg border border-zinc-200 bg-white p-2 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900";
 
 // Header-row dropdown offering a checkbox per household location plus
 // Unassigned (PER-288) — same Radix Popover pattern as StatusFilterDropdown
@@ -35,7 +35,7 @@ export function LocationFilterDropdown({
       <Popover.Trigger asChild>
         <button
           type="button"
-          className="flex items-center gap-1 rounded border border-zinc-300 px-2.5 py-1.5 text-sm text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+          className="flex h-9 items-center gap-1 rounded border border-zinc-300 bg-white px-2.5 text-sm whitespace-nowrap sm:h-auto sm:bg-transparent sm:py-1.5 dark:bg-zinc-900 sm:dark:bg-transparent text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
         >
           {label}
           <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
@@ -47,7 +47,7 @@ export function LocationFilterDropdown({
           {locations.map((location) => (
             <label
               key={location.id}
-              className="flex items-center gap-2 rounded px-2 py-1.5 text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="flex items-center gap-2 rounded px-2 py-2.5 text-zinc-700 sm:py-1.5 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
               <input
                 type="checkbox"
@@ -57,7 +57,7 @@ export function LocationFilterDropdown({
               {location.name}
             </label>
           ))}
-          <label className="flex items-center gap-2 rounded px-2 py-1.5 text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
+          <label className="flex items-center gap-2 rounded px-2 py-2.5 text-zinc-700 sm:py-1.5 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
             <input
               type="checkbox"
               checked={!hiddenKeys.has(UNASSIGNED_KEY)}

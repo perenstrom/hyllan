@@ -48,7 +48,7 @@ export function StockTakeLauncher({ location, items, onClose }: Props) {
     <dialog
       ref={dialogRef}
       onClose={onClose}
-      className={`${STOCK_TAKE_DIALOG_CLASS} max-w-sm`}
+      className={`${STOCK_TAKE_DIALOG_CLASS} sm:max-w-sm`}
     >
       <h2 className="text-lg font-semibold text-black dark:text-zinc-50">
         Start a stock take
@@ -61,14 +61,14 @@ export function StockTakeLauncher({ location, items, onClose }: Props) {
         <button
           type="button"
           onClick={() => setMode("stock-to-shelf")}
-          className="rounded border border-zinc-300 px-3 py-2 text-left text-sm text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+          className="rounded-lg border border-zinc-300 px-4 py-3.5 text-left text-sm text-zinc-700 sm:rounded sm:px-3 sm:py-2 dark:border-zinc-700 dark:text-zinc-300"
         >
           Go through everything recorded here
         </button>
         <button
           type="button"
           onClick={() => setMode("shelf-to-stock")}
-          className="rounded border border-zinc-300 px-3 py-2 text-left text-sm text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+          className="rounded-lg border border-zinc-300 px-4 py-3.5 text-left text-sm text-zinc-700 sm:rounded sm:px-3 sm:py-2 dark:border-zinc-700 dark:text-zinc-300"
         >
           Look up one item
         </button>
@@ -78,7 +78,7 @@ export function StockTakeLauncher({ location, items, onClose }: Props) {
         <button
           type="button"
           onClick={() => dialogRef.current?.close()}
-          className="rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+          className="h-11 w-full rounded border sm:h-auto sm:w-auto border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
         >
           Cancel
         </button>

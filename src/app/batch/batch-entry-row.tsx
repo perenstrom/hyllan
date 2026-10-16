@@ -152,7 +152,7 @@ export function BatchEntryRow({
               allowCreate ? "Search or add an item" : "Search for an item"
             }
             autoComplete="off"
-            className="mt-1 h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
+            className="mt-1 h-11 w-full rounded border border-zinc-300 bg-white px-3 sm:h-10 dark:border-zinc-700 dark:bg-zinc-900"
           />
           {open && trimmed.length > 0 && (
             <ul className="absolute top-full z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
@@ -161,7 +161,7 @@ export function BatchEntryRow({
                   <button
                     type="button"
                     onMouseDown={() => selectExisting(item)}
-                    className="block w-full px-3 py-1.5 text-left text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    className="block w-full px-3 py-2.5 text-left sm:py-1.5 text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
                   >
                     {item.name}{" "}
                     <span className="text-zinc-500 dark:text-zinc-500">
@@ -175,7 +175,7 @@ export function BatchEntryRow({
                   <button
                     type="button"
                     onMouseDown={() => void commit()}
-                    className="block w-full px-3 py-1.5 text-left text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    className="block w-full px-3 py-2.5 text-left sm:py-1.5 text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
                   >
                     Add &ldquo;{trimmed}&rdquo; as a new item
                   </button>
@@ -203,7 +203,7 @@ export function BatchEntryRow({
               onClick={() => step(-1)}
               disabled={!(Number(quantity) > 0)}
               aria-label="Decrease quantity"
-              className={`${ACTION_BUTTON_BASE_CLASS} h-10 w-10 shrink-0`}
+              className={`${ACTION_BUTTON_BASE_CLASS} h-11 w-11 shrink-0 sm:h-10 sm:w-10`}
             >
               <MinusIcon className={ACTION_ICON_CLASS} />
             </button>
@@ -219,13 +219,13 @@ export function BatchEntryRow({
                 setError(null);
               }}
               onKeyDown={commitOnEnter}
-              className="h-10 w-full min-w-0 rounded border border-zinc-300 px-2 text-center dark:border-zinc-700 dark:bg-zinc-900"
+              className="h-11 w-full min-w-0 rounded border border-zinc-300 bg-white px-2 sm:h-10 text-center dark:border-zinc-700 dark:bg-zinc-900"
             />
             <button
               type="button"
               onClick={() => step(1)}
               aria-label="Increase quantity"
-              className={`${ACTION_BUTTON_BASE_CLASS} h-10 w-10 shrink-0`}
+              className={`${ACTION_BUTTON_BASE_CLASS} h-11 w-11 shrink-0 sm:h-10 sm:w-10`}
             >
               <PlusIcon className={ACTION_ICON_CLASS} />
             </button>
@@ -236,7 +236,7 @@ export function BatchEntryRow({
           type="button"
           onClick={() => void commit()}
           disabled={pending}
-          className="h-10 shrink-0 rounded bg-black px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-50 dark:text-black"
+          className="h-11 shrink-0 rounded bg-black px-4 sm:h-10 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-50 dark:text-black"
         >
           {actionLabel}
         </button>

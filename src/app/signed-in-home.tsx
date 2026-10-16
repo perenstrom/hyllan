@@ -105,8 +105,13 @@ const ROW_CLASS_BY_STATUS: Record<PantryItemStockStatus, string> = {
 
 // Batch entry's two entry points (PER-307) — outlined, so they read as
 // secondary to the header's solid "+ Add item".
+// Full-height, centered tap targets in the mobile bottom bar; the compact
+// pill shape from sm up.
 const BATCH_LINK_CLASS =
-  "rounded border border-zinc-300 px-3 py-1.5 text-sm font-medium whitespace-nowrap text-zinc-700 dark:border-zinc-700 dark:text-zinc-300";
+  "flex h-11 items-center justify-center rounded-lg border border-zinc-300 bg-white px-3 text-sm font-medium whitespace-nowrap text-zinc-700 sm:h-auto sm:rounded sm:bg-transparent sm:py-1.5 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 sm:dark:bg-transparent";
+
+const ADD_ITEM_LINK_CLASS =
+  "flex h-11 items-center justify-center rounded-lg bg-black px-3 text-sm font-medium whitespace-nowrap text-white sm:h-auto sm:rounded sm:py-1.5 dark:bg-zinc-50 dark:text-black";
 
 const SORT_STORAGE_KEY = "hyllan:pantry-sort";
 const STATUS_FILTER_STORAGE_KEY = "hyllan:pantry-status-filter";
@@ -197,7 +202,10 @@ function SortableHeader({
 }: SortableHeaderProps) {
   const direction = sortState?.column === column ? sortState.direction : null;
   return (
-    <th className="px-2 py-2 sm:px-4" aria-sort={direction ?? "none"}>
+    <th
+      className="px-2 py-2 first:pl-4 sm:px-4 sm:first:pl-4"
+      aria-sort={direction ?? "none"}
+    >
       <button
         type="button"
         onClick={() => onSort(column)}
@@ -224,25 +232,30 @@ function GroupByToggle({
   value: GroupBy;
   onChange: (next: GroupBy) => void;
 }) {
-  const options: { key: GroupBy; label: string }[] = [
-    { key: "item", label: "By item" },
-    { key: "location", label: "By location" },
+  // The shorter visible label below sm keeps the toggle and both filter
+  // triggers on one row at phone width; the accessible name stays the full
+  // label at every viewport.
+  const options: { key: GroupBy; label: string; shortLabel: string }[] = [
+    { key: "item", label: "By item", shortLabel: "Item" },
+    { key: "location", label: "By location", shortLabel: "Location" },
   ];
   return (
-    <div className="inline-flex rounded border border-zinc-300 p-0.5 text-sm dark:border-zinc-700">
+    <div className="inline-flex h-9 rounded border border-zinc-300 bg-white p-0.5 text-sm whitespace-nowrap sm:h-auto sm:bg-transparent dark:border-zinc-700 dark:bg-zinc-900 sm:dark:bg-transparent">
       {options.map((option) => (
         <button
           key={option.key}
           type="button"
           onClick={() => onChange(option.key)}
           aria-pressed={value === option.key}
+          aria-label={option.label}
           className={`rounded px-2.5 py-1 ${
             value === option.key
               ? "bg-black text-white dark:bg-zinc-50 dark:text-black"
               : "text-zinc-600 dark:text-zinc-400"
           }`}
         >
-          {option.label}
+          <span className="sm:hidden">{option.shortLabel}</span>
+          <span className="hidden sm:inline">{option.label}</span>
         </button>
       ))}
     </div>
@@ -278,7 +291,7 @@ function BucketActions({
 }: BucketActionsProps) {
   const disabled = Number(bucket.quantity) <= 0;
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center justify-end gap-2 sm:justify-start sm:gap-1.5">
       <form action={onDecrement.bind(null, itemId, bucket.locationId)}>
         <button
           type="submit"
@@ -464,56 +477,57 @@ export function SignedInHome({ items, locations }: Props) {
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 font-sans dark:bg-black">
       <AppHeader />
-      <main className="flex flex-1 flex-col gap-4 py-5 sm:px-6 sm:py-6">
-        <div className="flex items-center justify-between px-2 sm:px-0">
-          <h1 className="text-lg font-semibold text-black dark:text-zinc-50">
+      {/* Bottom padding below sm keeps the last row clear of the fixed
+          mobile action bar. */}
+      <main className="flex flex-1 flex-col gap-3 pt-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:gap-4 sm:px-6 sm:py-6">
+        <div className="flex items-center justify-between px-4 sm:px-0">
+          <h1 className="text-xl font-semibold text-black sm:text-lg dark:text-zinc-50">
             Your pantry
           </h1>
-          <div className="flex items-center gap-2">
-            {optimisticItems.length > 0 && (
-              <>
-                <LocationFilterDropdown
-                  locations={locations}
-                  hiddenKeys={hiddenLocationKeys}
-                  onToggle={handleLocationFilterToggle}
-                />
-                <StatusFilterDropdown
-                  filter={statusFilter}
-                  onChange={handleStatusFilterChange}
-                />
-              </>
-            )}
-            <Link
-              href="/items/new"
-              className="rounded bg-black px-3 py-1.5 text-sm font-medium text-white dark:bg-zinc-50 dark:text-black"
-            >
-              + Add item
-            </Link>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 px-2 sm:px-0">
-          {optimisticItems.length > 0 && (
-            <div className="shrink-0">
-              <GroupByToggle value={groupBy} onChange={setGroupBy} />
-            </div>
-          )}
-          <div className="ml-auto flex items-center gap-2">
+          {/* One group for the three primary actions: inline next to the
+              title from sm up, a thumb-reachable bar pinned to the bottom
+              of the screen below it. */}
+          <nav
+            aria-label="Pantry actions"
+            className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-3 gap-2 border-t border-zinc-200 bg-zinc-50/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:static sm:flex sm:items-center sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none dark:border-zinc-800 dark:bg-black/95 sm:dark:bg-transparent"
+          >
             <Link href="/batch/add" className={BATCH_LINK_CLASS}>
               Add stock
             </Link>
             <Link href="/batch/remove" className={BATCH_LINK_CLASS}>
               Remove stock
             </Link>
-          </div>
+            <Link href="/items/new" className={ADD_ITEM_LINK_CLASS}>
+              + Add item
+            </Link>
+          </nav>
         </div>
 
+        {optimisticItems.length > 0 && (
+          <div className="flex items-center gap-2 overflow-x-auto px-4 sm:overflow-visible sm:px-0">
+            <div className="shrink-0">
+              <GroupByToggle value={groupBy} onChange={setGroupBy} />
+            </div>
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <LocationFilterDropdown
+                locations={locations}
+                hiddenKeys={hiddenLocationKeys}
+                onToggle={handleLocationFilterToggle}
+              />
+              <StatusFilterDropdown
+                filter={statusFilter}
+                onChange={handleStatusFilterChange}
+              />
+            </div>
+          </div>
+        )}
+
         {optimisticItems.length === 0 ? (
-          <p className="flex flex-1 items-center justify-center text-lg text-zinc-600 dark:text-zinc-400">
+          <p className="flex flex-1 items-center justify-center px-4 text-center text-lg text-zinc-600 dark:text-zinc-400">
             Your pantry is empty.
           </p>
         ) : displayItems.length === 0 ? (
-          <p className="flex flex-1 items-center justify-center text-lg text-zinc-600 dark:text-zinc-400">
+          <p className="flex flex-1 items-center justify-center px-4 text-center text-lg text-zinc-600 dark:text-zinc-400">
             No items match the current filter.
           </p>
         ) : groupBy === "item" ? (
@@ -563,13 +577,13 @@ function ItemGroupedTable({
   onDecrement,
 }: GroupedTableProps) {
   return (
-    <div className="overflow-x-auto sm:rounded-lg sm:border sm:border-zinc-200 dark:sm:border-zinc-800">
+    <div className="overflow-x-auto border-y border-zinc-200 bg-white sm:rounded-lg sm:border sm:bg-transparent dark:border-zinc-800 dark:bg-zinc-950 sm:dark:bg-transparent">
       {/* The Actions column is a fixed 3-element row at every
           viewport (ADR 0004, PER-266), so it no longer needs a
           minimum-width hack to avoid wrapping at narrow widths;
           horizontal scroll remains as a fallback for genuine edge
           cases like very long item names. */}
-      <table className="w-full text-left text-sm">
+      <table className="w-full text-left text-sm tabular-nums">
         <thead className="border-b border-zinc-200 dark:border-zinc-800">
           <tr>
             <SortableHeader
@@ -584,7 +598,7 @@ function ItemGroupedTable({
               sortState={sortState}
               onSort={onSort}
             />
-            <th className="px-2 py-2 font-medium text-zinc-600 sm:px-4 dark:text-zinc-400">
+            <th className="py-2 pr-4 pl-2 text-right font-medium text-zinc-600 sm:px-4 sm:text-left dark:text-zinc-400">
               Actions
             </th>
           </tr>
@@ -606,7 +620,7 @@ function ItemGroupedTable({
                 <tr
                   className={`border-b border-zinc-100 last:border-0 dark:border-zinc-900 ${rowStatusClass}`}
                 >
-                  <td className="px-2 py-2 sm:px-4">
+                  <td className="px-2 py-2.5 first:pl-4 last:pr-4 sm:px-4 sm:py-2">
                     <div className="flex items-center gap-1">
                       {isMulti ? (
                         <button
@@ -632,12 +646,12 @@ function ItemGroupedTable({
                       <StockStatusLabel status={status} />
                     </div>
                   </td>
-                  <td className="px-2 py-2 sm:px-4">
+                  <td className="px-2 py-2.5 first:pl-4 last:pr-4 sm:px-4 sm:py-2">
                     {formatQuantity(item.quantity, item.unit)}
                   </td>
-                  <td className="px-2 py-2 sm:px-4">
+                  <td className="px-2 py-2.5 first:pl-4 last:pr-4 sm:px-4 sm:py-2">
                     {isMulti ? (
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center justify-end gap-1.5 sm:justify-start">
                         <span className="px-1 text-xs text-zinc-500 dark:text-zinc-500">
                           {isOpen ? "Expanded below" : "Expand to adjust"}
                         </span>
@@ -664,13 +678,13 @@ function ItemGroupedTable({
                       key={`${item.id}-${bucket.locationId ?? UNASSIGNED_KEY}`}
                       className={`border-b border-zinc-100 bg-zinc-50/70 last:border-0 dark:border-zinc-900 dark:bg-zinc-900/40 ${rowStatusClass}`}
                     >
-                      <td className="py-1.5 pr-2 pl-9 text-zinc-600 sm:pl-11 dark:text-zinc-400">
+                      <td className="py-2 pr-2 pl-9 text-zinc-600 sm:py-1.5 sm:pl-11 dark:text-zinc-400">
                         {locationLabel(bucket)}
                       </td>
-                      <td className="px-2 py-1.5 sm:px-4">
+                      <td className="px-2 py-2 last:pr-4 sm:px-4 sm:py-1.5">
                         {formatQuantity(bucket.quantity, item.unit)}
                       </td>
-                      <td className="px-2 py-1.5 sm:px-4">
+                      <td className="px-2 py-2 last:pr-4 sm:px-4 sm:py-1.5">
                         <BucketActions
                           itemId={item.id}
                           itemName={item.name}
@@ -743,20 +757,20 @@ function LocationGroupedTables({
 
         return (
           <div key={key}>
-            <h2 className="px-2 pb-2 text-sm font-semibold text-black sm:px-0 dark:text-zinc-50">
+            <h2 className="px-4 pb-2 text-sm font-semibold text-black sm:px-0 dark:text-zinc-50">
               {sectionName}
             </h2>
-            <div className="overflow-x-auto sm:rounded-lg sm:border sm:border-zinc-200 dark:sm:border-zinc-800">
-              <table className="w-full text-left text-sm">
+            <div className="overflow-x-auto border-y border-zinc-200 bg-white sm:rounded-lg sm:border sm:bg-transparent dark:border-zinc-800 dark:bg-zinc-950 sm:dark:bg-transparent">
+              <table className="w-full text-left text-sm tabular-nums">
                 <thead className="border-b border-zinc-200 dark:border-zinc-800">
                   <tr>
-                    <th className="px-2 py-2 font-medium text-zinc-600 sm:px-4 dark:text-zinc-400">
+                    <th className="px-2 py-2 font-medium text-zinc-600 first:pl-4 last:pr-4 last:text-right sm:px-4 sm:last:text-left dark:text-zinc-400">
                       Name
                     </th>
-                    <th className="px-2 py-2 font-medium text-zinc-600 sm:px-4 dark:text-zinc-400">
+                    <th className="px-2 py-2 font-medium text-zinc-600 first:pl-4 last:pr-4 last:text-right sm:px-4 sm:last:text-left dark:text-zinc-400">
                       Amount here
                     </th>
-                    <th className="px-2 py-2 font-medium text-zinc-600 sm:px-4 dark:text-zinc-400">
+                    <th className="px-2 py-2 font-medium text-zinc-600 first:pl-4 last:pr-4 last:text-right sm:px-4 sm:last:text-left dark:text-zinc-400">
                       Actions
                     </th>
                   </tr>
@@ -769,14 +783,14 @@ function LocationGroupedTables({
                         key={item.id}
                         className={`border-b border-zinc-100 last:border-0 dark:border-zinc-900 ${ROW_CLASS_BY_STATUS[status]}`}
                       >
-                        <td className="px-2 py-2 sm:px-4">
+                        <td className="px-2 py-2.5 first:pl-4 last:pr-4 sm:px-4 sm:py-2">
                           {item.name}
                           <StockStatusLabel status={status} />
                         </td>
-                        <td className="px-2 py-2 sm:px-4">
+                        <td className="px-2 py-2.5 first:pl-4 last:pr-4 sm:px-4 sm:py-2">
                           {formatQuantity(bucket.quantity, item.unit)}
                         </td>
-                        <td className="px-2 py-2 sm:px-4">
+                        <td className="px-2 py-2.5 first:pl-4 last:pr-4 sm:px-4 sm:py-2">
                           <BucketActions
                             itemId={item.id}
                             itemName={item.name}
