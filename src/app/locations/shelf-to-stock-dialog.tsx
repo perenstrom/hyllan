@@ -52,7 +52,7 @@ export function ShelfToStockDialog({ location, items, onClose }: Props) {
     <dialog
       ref={dialogRef}
       onClose={onClose}
-      className={`${STOCK_TAKE_DIALOG_CLASS} max-w-lg`}
+      className={`${STOCK_TAKE_DIALOG_CLASS} sm:max-w-lg`}
     >
       <StockTakeDialogHeader
         title={`Look up an item: ${location.name}`}

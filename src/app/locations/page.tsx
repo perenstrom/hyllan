@@ -1,5 +1,6 @@
 import { LocationsManager } from "./locations-manager";
 import { AppHeader } from "@/app/app-header";
+import { PANEL_MAIN_CLASS } from "@/app/panel-styles";
 import { db } from "@/db/client";
 import { requireSessionClaims } from "@/lib/auth";
 import { getHouseholdForUser } from "@/lib/household";
@@ -17,7 +18,7 @@ export default async function LocationsPage() {
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 font-sans dark:bg-black">
       <AppHeader />
-      <main className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-8">
+      <main className={PANEL_MAIN_CLASS}>
         <LocationsManager locations={locations} items={items} />
       </main>
     </div>

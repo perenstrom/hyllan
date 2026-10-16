@@ -5,7 +5,7 @@
 // old `hover:` variant since Radix sets that attribute for both pointer
 // hover and keyboard roving-tabindex navigation.
 export const DROPDOWN_PANEL_CLASS =
-  "z-10 w-44 overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900";
+  "z-30 w-44 overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900";
 
 export const DROPDOWN_ITEM_CLASS =
-  "block w-full cursor-default px-3 py-2 text-left text-zinc-700 outline-none data-[highlighted]:bg-zinc-100 dark:text-zinc-300 dark:data-[highlighted]:bg-zinc-800";
+  "block w-full cursor-default px-3 py-3 text-left text-zinc-700 outline-none sm:py-2 data-[highlighted]:bg-zinc-100 dark:text-zinc-300 dark:data-[highlighted]:bg-zinc-800";
