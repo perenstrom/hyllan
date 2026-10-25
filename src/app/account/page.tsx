@@ -1,6 +1,7 @@
 import { AccountActions } from "./account-actions";
 import { ChangePasswordForm } from "./change-password-form";
 import { AppHeader } from "@/app/app-header";
+import { PANEL_CARD_CLASS, PANEL_MAIN_CLASS } from "@/app/panel-styles";
 import { requireSessionClaims } from "@/lib/auth";
 
 export default async function AccountPage() {
@@ -9,15 +10,15 @@ export default async function AccountPage() {
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 font-sans dark:bg-black">
       <AppHeader />
-      <main className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-8">
-        <div className="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-zinc-200 p-6 dark:border-zinc-800">
+      <main className={PANEL_MAIN_CLASS}>
+        <div className={PANEL_CARD_CLASS}>
           <h1 className="text-xl font-semibold text-black dark:text-zinc-50">
             Account
           </h1>
           <AccountActions />
         </div>
 
-        <div className="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-zinc-200 p-6 dark:border-zinc-800">
+        <div className={PANEL_CARD_CLASS}>
           <h2 className="text-lg font-semibold text-black dark:text-zinc-50">
             Change password
           </h2>

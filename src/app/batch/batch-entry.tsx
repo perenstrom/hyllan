@@ -137,9 +137,9 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-4 px-4 py-6 sm:px-0">
+    <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-4 px-4 pt-5 pb-8 sm:px-0 sm:py-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-black dark:text-zinc-50">
+        <h1 className="text-xl font-semibold text-black sm:text-lg dark:text-zinc-50">
           {direction === "add" ? "Add stock" : "Remove stock"}
         </h1>
         <Link
@@ -182,7 +182,7 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
             {entries.map((entry) => (
               <li
                 key={entry.id}
-                className={`flex items-center justify-between gap-2 rounded border border-zinc-200 px-2 py-1 dark:border-zinc-800 ${
+                className={`flex items-center justify-between gap-2 rounded border border-zinc-200 bg-white px-3 py-2.5 sm:px-2 sm:py-1 dark:border-zinc-800 dark:bg-zinc-950 ${
                   entry.reversed ? "opacity-50" : ""
                 }`}
               >
@@ -216,7 +216,7 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
                       disabled={pending}
                       aria-label={`Reverse ${entry.itemName}`}
                       title="Undo"
-                      className="text-zinc-400 hover:text-zinc-600 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-500 dark:hover:text-zinc-300"
+                      className="-m-2 p-2 text-zinc-400 hover:text-zinc-600 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-500 dark:hover:text-zinc-300"
                     >
                       <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>

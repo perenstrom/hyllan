@@ -54,7 +54,7 @@ export function StockToShelfDialog({ location, items, onClose }: Props) {
     <dialog
       ref={dialogRef}
       onClose={onClose}
-      className={`${STOCK_TAKE_DIALOG_CLASS} max-w-lg`}
+      className={`${STOCK_TAKE_DIALOG_CLASS} sm:max-w-lg`}
     >
       <StockTakeDialogHeader
         title={`Stock take: ${location.name}`}
@@ -94,12 +94,12 @@ export function StockToShelfDialog({ location, items, onClose }: Props) {
             />
           </div>
 
-          <div className="mt-2 flex justify-between gap-2">
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:justify-between">
             <button
               type="button"
               disabled={index === 0}
               onClick={() => setIndex((current) => current - 1)}
-              className="rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300"
+              className="h-11 rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 disabled:opacity-50 sm:h-auto dark:border-zinc-700 dark:text-zinc-300"
             >
               Previous
             </button>
@@ -112,7 +112,7 @@ export function StockToShelfDialog({ location, items, onClose }: Props) {
                 }
                 setIndex((current) => current + 1);
               }}
-              className="rounded bg-black px-3 py-1.5 text-sm font-medium text-white dark:bg-zinc-50 dark:text-black"
+              className="h-11 rounded bg-black px-3 py-1.5 text-sm font-medium text-white sm:h-auto dark:bg-zinc-50 dark:text-black"
             >
               {isLast ? "Finish" : "Next"}
             </button>

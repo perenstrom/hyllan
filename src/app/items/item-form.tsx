@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 
 import { LocationPickerCombobox } from "../location-picker-combobox";
+import { PANEL_CARD_CLASS, PANEL_FOOTER_CLASS } from "../panel-styles";
 import type { LocationOption } from "@/lib/location";
 import { PANTRY_ITEM_UNITS } from "@/lib/pantry-item";
 import type { PantryItemUnit } from "@/lib/pantry-item";
@@ -50,10 +51,10 @@ export function ItemForm({
   );
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center bg-zinc-50 px-6 dark:bg-black">
+    <div className="flex flex-1 flex-col bg-zinc-50 px-4 pt-5 sm:items-center sm:justify-center sm:px-6 sm:py-8 dark:bg-black">
       <form
         action={formAction}
-        className="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-zinc-200 p-6 dark:border-zinc-800"
+        className={`${PANEL_CARD_CLASS} flex-1 sm:flex-none`}
       >
         <h1 className="text-xl font-semibold text-black dark:text-zinc-50">
           {heading}
@@ -72,7 +73,7 @@ export function ItemForm({
             type="text"
             required
             defaultValue={defaultValues?.name}
-            className="h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
+            className="h-11 w-full rounded border border-zinc-300 bg-white px-3 sm:h-10 dark:border-zinc-700 dark:bg-zinc-900"
           />
         </div>
 
@@ -92,7 +93,7 @@ export function ItemForm({
               step="any"
               defaultValue={defaultValues?.quantity ?? "1"}
               required
-              className="h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
+              className="h-11 w-full rounded border border-zinc-300 bg-white px-3 sm:h-10 dark:border-zinc-700 dark:bg-zinc-900"
             />
           </div>
 
@@ -111,7 +112,7 @@ export function ItemForm({
               // to fill a flex column's cross axis on its own — without
               // this it sizes to its selected option's content instead,
               // landing narrower than the Quantity field beside it.
-              className="h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
+              className="h-11 w-full rounded border border-zinc-300 bg-white px-3 sm:h-10 dark:border-zinc-700 dark:bg-zinc-900"
             >
               {PANTRY_ITEM_UNITS.map((unit) => (
                 <option key={unit} value={unit}>
@@ -136,7 +137,7 @@ export function ItemForm({
             min="0"
             step="any"
             defaultValue={defaultValues?.minimumQuantity ?? ""}
-            className="h-10 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
+            className="h-11 w-full rounded border border-zinc-300 bg-white px-3 sm:h-10 dark:border-zinc-700 dark:bg-zinc-900"
           />
           <p className="text-xs text-zinc-500 dark:text-zinc-500">
             The least you want on hand, in the same unit as quantity. Leave
@@ -177,20 +178,22 @@ export function ItemForm({
 
         {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
 
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-50 dark:text-black"
-        >
-          {pending ? pendingLabel : submitLabel}
-        </button>
+        <div className={PANEL_FOOTER_CLASS}>
+          <button
+            type="submit"
+            disabled={pending}
+            className="h-11 rounded-lg bg-black px-4 text-sm font-medium text-white disabled:opacity-50 sm:h-auto sm:rounded sm:py-2 dark:bg-zinc-50 dark:text-black"
+          >
+            {pending ? pendingLabel : submitLabel}
+          </button>
 
-        <Link
-          href="/"
-          className="text-sm text-zinc-600 underline dark:text-zinc-400"
-        >
-          Cancel
-        </Link>
+          <Link
+            href="/"
+            className="order-first flex h-11 items-center justify-center rounded-lg border border-zinc-300 px-4 text-sm text-zinc-700 sm:order-none sm:block sm:h-auto sm:border-0 sm:px-0 sm:text-zinc-600 sm:underline dark:border-zinc-700 dark:text-zinc-300 sm:dark:text-zinc-400"
+          >
+            Cancel
+          </Link>
+        </div>
       </form>
     </div>
   );

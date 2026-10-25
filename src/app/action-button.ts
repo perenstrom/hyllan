@@ -7,6 +7,7 @@ export const ACTION_BUTTON_BASE_CLASS =
   "flex items-center justify-center rounded border border-zinc-300 text-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300";
 
 // 32px touch target per ADR 0004, shared by every control in the Actions
-// column (decrement, increment, and the overflow menu trigger).
-export const ACTION_BUTTON_CLASS = `${ACTION_BUTTON_BASE_CLASS} h-8 w-8`;
+// column (decrement, increment, and the overflow menu trigger) — bumped to
+// 36px below the small breakpoint, where it's a thumb rather than a cursor.
+export const ACTION_BUTTON_CLASS = `${ACTION_BUTTON_BASE_CLASS} h-9 w-9 sm:h-8 sm:w-8`;
 export const ACTION_ICON_CLASS = "h-4 w-4";

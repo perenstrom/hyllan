@@ -9,6 +9,7 @@ import {
   renameLocationAction,
 } from "./actions";
 import { StockTakeLauncher } from "./stock-take-launcher";
+import { PANEL_CARD_CLASS } from "@/app/panel-styles";
 import type { LocationOption } from "@/lib/location";
 import type { PantryItemWithLocations } from "@/lib/pantry-items";
 
@@ -105,7 +106,7 @@ export function LocationsManager({
   }
 
   return (
-    <div className="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-zinc-200 p-6 dark:border-zinc-800">
+    <div className={PANEL_CARD_CLASS}>
       <div>
         <h1 className="text-xl font-semibold text-black dark:text-zinc-50">
           Manage locations
@@ -129,12 +130,12 @@ export function LocationsManager({
                   }))
                 }
                 onBlur={() => handleRenameBlur(location)}
-                className="h-9 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
+                className="h-11 w-full rounded border border-zinc-300 bg-white px-3 sm:h-9 dark:border-zinc-700 dark:bg-zinc-900"
               />
               <button
                 type="button"
                 onClick={() => setStockTakeLocation(location)}
-                className="h-9 shrink-0 rounded border border-zinc-300 px-2.5 text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+                className="h-11 shrink-0 rounded border border-zinc-300 px-3 text-sm sm:h-9 sm:px-2.5 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
               >
                 Stock take
               </button>
@@ -142,7 +143,7 @@ export function LocationsManager({
                 type="button"
                 onClick={() => handleDelete(location)}
                 aria-label={`Delete ${location.name}`}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded border sm:h-9 sm:w-9 border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -169,11 +170,11 @@ export function LocationsManager({
             value={newName}
             onChange={(event) => setNewName(event.target.value)}
             placeholder="New location"
-            className="h-9 w-full rounded border border-zinc-300 px-3 dark:border-zinc-700 dark:bg-zinc-900"
+            className="h-11 w-full rounded border border-zinc-300 bg-white px-3 sm:h-9 dark:border-zinc-700 dark:bg-zinc-900"
           />
           <button
             type="submit"
-            className="h-9 shrink-0 rounded bg-black px-3 text-sm font-medium text-white dark:bg-zinc-50 dark:text-black"
+            className="h-11 shrink-0 rounded bg-black px-4 sm:h-9 sm:px-3 text-sm font-medium text-white dark:bg-zinc-50 dark:text-black"
           >
             Add
           </button>

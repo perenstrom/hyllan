@@ -2,6 +2,11 @@
 
 import { useEffect, useRef } from "react";
 
+import {
+  DIALOG_ACTIONS_CLASS,
+  DIALOG_BUTTON_SIZE_CLASS,
+  DIALOG_CLASS,
+} from "./dialog-styles";
 import { deleteItem } from "./items/actions";
 
 type Props = {
@@ -57,27 +62,27 @@ export function DeleteItemDialog({
     <dialog
       ref={dialogRef}
       onClose={() => onOpenChange(false)}
-      className="m-auto rounded-lg border border-zinc-200 bg-white p-6 backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-900"
+      className={`${DIALOG_CLASS} sm:w-auto`}
     >
       <h2 className="text-lg font-semibold text-black dark:text-zinc-50">
         Delete {itemName}?
       </h2>
       <p className="mt-2 max-w-sm text-sm text-zinc-600 dark:text-zinc-400">
-        This immediately and permanently deletes this pantry item. This
-        cannot be undone.
+        This immediately and permanently deletes this pantry item. This cannot
+        be undone.
       </p>
-      <div className="mt-4 flex justify-end gap-2">
+      <div className={DIALOG_ACTIONS_CLASS}>
         <button
           type="button"
           onClick={() => onOpenChange(false)}
-          className="rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+          className={`${DIALOG_BUTTON_SIZE_CLASS} rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 dark:border-zinc-700 dark:text-zinc-300`}
         >
           Cancel
         </button>
         <form action={handleDelete}>
           <button
             type="submit"
-            className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white"
+            className={`${DIALOG_BUTTON_SIZE_CLASS} rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white`}
           >
             Delete
           </button>

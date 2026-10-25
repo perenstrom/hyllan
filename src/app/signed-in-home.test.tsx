@@ -172,14 +172,35 @@ describe("SignedInHome", () => {
 
     const main = screen.getByRole("main");
     expect(main).not.toHaveClass("px-2");
-    expect(main).toHaveClass("py-5", "sm:px-6", "sm:py-6");
+    expect(main).toHaveClass("pt-4", "sm:px-6", "sm:py-6");
   });
 
-  it("keeps a small horizontal inset on the header row below sm, since main no longer provides one there", () => {
+  it("pads main's bottom below sm so the fixed action bar never covers the last row", () => {
+    renderHome({ items: [] });
+
+    expect(screen.getByRole("main")).toHaveClass(
+      "pb-[calc(5rem+env(safe-area-inset-bottom))]",
+      "sm:py-6",
+    );
+  });
+
+  it("keeps a 16px horizontal inset on the header row below sm, since main no longer provides one there", () => {
     renderHome({ items: [] });
 
     const header = screen.getByText("Your pantry").closest("div");
-    expect(header).toHaveClass("px-2", "sm:px-0");
+    expect(header).toHaveClass("px-4", "sm:px-0");
+  });
+
+  it("groups the three primary actions into one bar, pinned to the bottom below sm and inline from sm up", () => {
+    renderHome({ items: [] });
+
+    const bar = screen.getByRole("navigation", { name: "Pantry actions" });
+    expect(bar).toHaveClass("fixed", "bottom-0", "grid-cols-3", "sm:static");
+    expect(
+      within(bar)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["Add stock", "Remove stock", "+ Add item"]);
   });
 
   it("shrinks table cell horizontal padding below sm, restoring it at/above sm", () => {
@@ -191,7 +212,7 @@ describe("SignedInHome", () => {
     ];
     for (const cell of cells) {
       expect(cell).not.toHaveClass("px-4");
-      expect(cell).toHaveClass("px-2", "py-2", "sm:px-4");
+      expect(cell).toHaveClass("sm:px-4");
     }
   });
 
@@ -203,8 +224,8 @@ describe("SignedInHome", () => {
     expect(wrapper).toHaveClass(
       "sm:rounded-lg",
       "sm:border",
-      "sm:border-zinc-200",
-      "dark:sm:border-zinc-800",
+      "border-zinc-200",
+      "dark:border-zinc-800",
     );
   });
 
@@ -261,7 +282,7 @@ describe("SignedInHome", () => {
     renderHome({ items: [itemRow()] });
 
     const container = getActionsContainer();
-    expect(container).toHaveClass("flex", "items-center", "gap-1.5");
+    expect(container).toHaveClass("flex", "items-center", "sm:gap-1.5");
     expect(container).not.toHaveClass("grid", "grid-cols-2");
   });
 
