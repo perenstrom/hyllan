@@ -31,7 +31,11 @@ export type Scenario = {
   // seeded item name, and name-lookup cache entries (ADR 0008) to pre-fill
   // — scan scenarios use these so their outcome doesn't depend on live
   // lookup APIs.
-  barcodeRegistrations?: { itemName: string; value: string }[];
+  barcodeRegistrations?: {
+    itemName: string;
+    value: string;
+    quantityPerScan?: string;
+  }[];
   productNames?: { value: string; name: string }[];
   // Extra steps to reach a state that isn't a route by itself, e.g.
   // opening a dialog.
@@ -410,8 +414,31 @@ export const SCENARIOS: Scenario[] = [
       await page.getByRole("button", { name: "Wrong item? (Pasta)" }).click();
       await page.getByLabel("Pantry item").fill("Rice");
       await page.getByRole("button", { name: "Rice", exact: true }).click();
+      await page.getByRole("button", { name: "Add 1 kg" }).click();
       await page
         .getByRole("heading", { name: "Move this barcode to Rice?" })
+        .waitFor({ state: "visible" });
+    },
+  },
+  {
+    // Step two of the pick-or-create panel: how much one scan is, with a
+    // unit picker since this is a new item.
+    name: "batch-scan-register-amount",
+    seed: DEFAULT_SEED_ITEMS,
+    productNames: [{ value: UNREGISTERED_EAN, name: "Fusilli" }],
+    route: "/batch/add",
+    interactions: async (page) => {
+      await fakeCamera(page, UNREGISTERED_EAN);
+      await page
+        .getByRole("button", { name: "Use suggested name Fusilli" })
+        .click();
+      await page
+        .getByRole("button", { name: "Add “Fusilli” as a new item" })
+        .click();
+      await page.getByLabel("Unit").selectOption("g");
+      await page.getByLabel(/Each scan of this barcode/).fill("500");
+      await page
+        .getByRole("button", { name: "Add 500 g" })
         .waitFor({ state: "visible" });
     },
   },

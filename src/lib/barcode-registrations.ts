@@ -13,6 +13,7 @@ type Database<TQueryResult extends PgQueryResultHKT = PgQueryResultHKT> =
 export type BarcodeRegistrationMatch = {
   pantryItemId: string;
   itemName: string;
+  quantityPerScan: string;
 };
 
 // barcodeValue must already be canonical (canonicalBarcodeValue) — the
@@ -28,6 +29,7 @@ export async function findBarcodeRegistration<
     .select({
       pantryItemId: barcodeRegistrations.pantryItemId,
       itemName: pantryItems.name,
+      quantityPerScan: barcodeRegistrations.quantityPerScan,
     })
     .from(barcodeRegistrations)
     .innerJoin(
@@ -47,6 +49,8 @@ export type RegisterBarcodeInput = {
   barcodeValue: string;
   symbology: BarcodeSymbology;
   pantryItemId: string;
+  // Positive, already parsed (parseQuantity) — in the item's own unit.
+  quantityPerScan: string;
   // Repointing a barcode already on another item has to be confirmed by
   // the household first (ADR 0007) — without this, that case reports a
   // conflict instead of overwriting.
@@ -87,6 +91,7 @@ export async function registerBarcode<TQueryResult extends PgQueryResultHKT>(
         pantryItemId: input.pantryItemId,
         barcodeValue: input.barcodeValue,
         symbology: input.symbology,
+        quantityPerScan: input.quantityPerScan,
       })
       .onConflictDoNothing()
       .returning({ id: barcodeRegistrations.id });
@@ -113,7 +118,13 @@ export async function registerBarcode<TQueryResult extends PgQueryResultHKT>(
       )
       .for("update", { of: barcodeRegistrations });
 
+    // Registering a barcode to the item it's already on is how its amount
+    // gets changed ("Wrong item?" and picking the same item again).
     if (existing.pantryItemId === input.pantryItemId) {
+      await tx
+        .update(barcodeRegistrations)
+        .set({ quantityPerScan: input.quantityPerScan })
+        .where(eq(barcodeRegistrations.id, existing.id));
       return { status: "registered" };
     }
     if (!input.reassign) {
@@ -125,7 +136,11 @@ export async function registerBarcode<TQueryResult extends PgQueryResultHKT>(
 
     await tx
       .update(barcodeRegistrations)
-      .set({ pantryItemId: input.pantryItemId, symbology: input.symbology })
+      .set({
+        pantryItemId: input.pantryItemId,
+        symbology: input.symbology,
+        quantityPerScan: input.quantityPerScan,
+      })
       .where(eq(barcodeRegistrations.id, existing.id));
     return { status: "registered" };
   });

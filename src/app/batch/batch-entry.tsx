@@ -17,7 +17,11 @@ import {
   type BatchItemOption,
 } from "./batch-entry-row";
 import { ReassignBarcodeDialog } from "./reassign-barcode-dialog";
-import { registerScannedBarcode, scanBatchBarcode } from "./scan-actions";
+import {
+  registerScannedBarcode,
+  scanBatchBarcode,
+  type BarcodeRegistrationChoice,
+} from "./scan-actions";
 import type { ScannedBarcode } from "@/lib/barcode";
 import { formatQuantity } from "@/lib/pantry-item";
 
@@ -41,7 +45,7 @@ type RegisterRequest =
 // A pick that hit a registration on another item, waiting on the
 // household to confirm the move (ADR 0007).
 type ReassignRequest = {
-  target: BatchCommitTarget;
+  choice: BarcodeRegistrationChoice;
   fromItemName: string;
   toItemName: string;
 };
@@ -71,9 +75,9 @@ function formatDelta(delta: string, unit: BatchEntryChange["unit"]) {
 // rollback to the value at commit time.
 //
 // Scanning (PER-308) is a second input method on the same page: the
-// item field's scan icon opens the camera, a registered barcode applies a
-// flat ±1, and an unregistered one opens the pick-or-create panel (add
-// mode only — remove never creates).
+// item field's scan icon opens the camera, a registered barcode applies
+// its per-scan amount, and an unregistered one opens the pick-or-create
+// panel (add mode only — remove never creates).
 export function BatchEntry({ direction, items: initialItems }: Props) {
   const [items, setItems] = useState(initialItems);
   const [entries, setEntries] = useState<LogEntry[]>([]);
@@ -188,7 +192,7 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
     setReassignRequest(null);
   }
 
-  async function pick(target: BatchCommitTarget, reassign = false) {
+  async function pick(choice: BarcodeRegistrationChoice, reassign = false) {
     if (!registerRequest) {
       return;
     }
@@ -196,14 +200,15 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
     const result = await run(() =>
       registerScannedBarcode(
         registerRequest.barcode,
-        target,
+        choice,
         direction,
         reassign,
       ),
     );
     if ("conflict" in result) {
+      const { target } = choice;
       setReassignRequest({
-        target,
+        choice,
         fromItemName: result.conflict.itemName,
         toItemName:
           "itemId" in target
@@ -278,7 +283,7 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
       </div>
 
       {/* Scanning takes over the top of the page: typing, the quantity
-          (a scan always moves exactly one) and the Add/Remove button only
+          (a scan moves its barcode's own amount) and the Add/Remove button only
           get in the way while the camera is up. */}
       {scanning ? (
         <div className="flex items-center justify-between gap-3">
@@ -344,10 +349,10 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
               : undefined
           }
           items={items}
-          allowCreate={direction === "add"}
+          direction={direction}
           pending={pending}
           error={registerError}
-          onPick={(target) => void pick(target)}
+          onPick={(choice) => void pick(choice)}
           onCancel={closeRegister}
         />
       )}
@@ -357,7 +362,7 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
           fromItemName={reassignRequest.fromItemName}
           toItemName={reassignRequest.toItemName}
           pending={pending}
-          onConfirm={() => void pick(reassignRequest.target, true)}
+          onConfirm={() => void pick(reassignRequest.choice, true)}
           onCancel={() => setReassignRequest(null)}
         />
       )}

@@ -20,6 +20,11 @@ import {
 } from "@/lib/barcode-registrations";
 import { getHouseholdForUser } from "@/lib/household";
 import {
+  isPantryItemUnit,
+  parseQuantity,
+  type PantryItemUnit,
+} from "@/lib/pantry-item";
+import {
   addPantryItem,
   adjustPantryItemQuantityBy,
   PantryItemUnitMismatchError,
@@ -41,6 +46,15 @@ export type BatchScanResult =
 export type BatchRegisterResult =
   BatchEntryResult | { ok: false; conflict: { itemName: string } };
 
+// What the pick-or-create panel settled on for a barcode: which item, and
+// how much one scan of it is, in that item's unit.
+export type BarcodeRegistrationChoice = {
+  target: BatchCommitTarget;
+  quantityPerScan: string;
+  // A new item only — an existing one keeps its own unit.
+  newItemUnit?: PantryItemUnit;
+};
+
 const UNREADABLE = {
   ok: false,
   error: "That barcode couldn't be read. Try again.",
@@ -50,10 +64,10 @@ const UNREADABLE = {
 // Notes).
 const UNASSIGNED = null;
 
-// A scan always moves exactly one — no per-registration quantity for
-// multipacks (PER-274's Notes).
-function scanDelta(direction: BatchDirection) {
-  return direction === "add" ? "1" : "-1";
+// A scan moves its registration's amount (ADR 0007's amendment) — one
+// pack's worth, in the item's unit.
+function scanDelta(direction: BatchDirection, quantityPerScan: string) {
+  return direction === "add" ? quantityPerScan : `-${quantityPerScan}`;
 }
 
 // Every scan-driven change lands on the page the same way: the item's new
@@ -80,7 +94,7 @@ function scannedEntry(
 async function applyScan(
   householdId: string,
   itemId: string,
-  direction: BatchDirection,
+  delta: string,
   barcode: ScannedBarcode,
 ): Promise<BatchEntryResult> {
   const result = await adjustPantryItemQuantityBy(
@@ -88,7 +102,7 @@ async function applyScan(
     householdId,
     itemId,
     UNASSIGNED,
-    scanDelta(direction),
+    delta,
   );
   if (!result) {
     return { ok: false, error: "Item not found." };
@@ -97,7 +111,7 @@ async function applyScan(
 }
 
 // Called with every decoded frame the camera settles on. A registered
-// barcode applies ±1 straight away; an unregistered one comes back
+// barcode applies its amount straight away; an unregistered one comes back
 // canonicalized for the page's pick-or-create panel (add mode) or to be
 // shrugged off (remove mode, which never creates).
 export async function scanBatchBarcode(
@@ -124,7 +138,7 @@ export async function scanBatchBarcode(
   const result = await applyScan(
     household.id,
     registration.pantryItemId,
-    direction,
+    scanDelta(direction, registration.quantityPerScan),
     barcode,
   );
   return result.ok
@@ -133,16 +147,18 @@ export async function scanBatchBarcode(
 }
 
 // The pick-or-create panel's commit: registers the barcode to the chosen
-// (or newly created) item and applies the scan's ±1 in the same action.
+// (or newly created) item with its per-scan amount, and applies that
+// amount in the same action.
 // Also how "Wrong item?" corrects a registration, which is why picking an
 // item can hit an existing registration and come back as a conflict.
 export async function registerScannedBarcode(
   barcode: ScannedBarcode,
-  target: BatchCommitTarget,
+  choice: BarcodeRegistrationChoice,
   direction: BatchDirection,
   reassign: boolean,
 ): Promise<BatchRegisterResult> {
   const { claims } = await requireSessionClaims();
+  const { target } = choice;
 
   if (
     !isBarcodeSymbology(barcode.symbology) ||
@@ -151,10 +167,16 @@ export async function registerScannedBarcode(
     return UNREADABLE;
   }
 
+  const quantityPerScan = parseQuantity(choice.quantityPerScan.trim());
+  if (quantityPerScan === null || Number(quantityPerScan) <= 0) {
+    return { ok: false, error: "Amount must be a positive number." };
+  }
+
   const household = await getHouseholdForUser(db, claims.sub);
   const registration = {
     barcodeValue: barcode.value,
     symbology: barcode.symbology,
+    quantityPerScan,
   };
 
   if ("itemId" in target) {
@@ -172,7 +194,12 @@ export async function registerScannedBarcode(
         conflict: { itemName: registered.registeredTo.name },
       };
     }
-    return applyScan(household.id, target.itemId, direction, barcode);
+    return applyScan(
+      household.id,
+      target.itemId,
+      scanDelta(direction, quantityPerScan),
+      barcode,
+    );
   }
 
   if (direction === "remove") {
@@ -201,8 +228,11 @@ export async function registerScannedBarcode(
   try {
     item = await addPantryItem(db, household.id, {
       name,
-      quantity: "1",
-      unit: "count",
+      quantity: quantityPerScan,
+      unit:
+        choice.newItemUnit && isPantryItemUnit(choice.newItemUnit)
+          ? choice.newItemUnit
+          : "count",
       locationId: UNASSIGNED,
     });
   } catch (error) {
@@ -222,7 +252,7 @@ export async function registerScannedBarcode(
     reassign: true,
   });
 
-  return scannedEntry(item, "1", barcode);
+  return scannedEntry(item, quantityPerScan, barcode);
 }
 
 // Background name suggestion for the pick-or-create panel (ADR 0008). A

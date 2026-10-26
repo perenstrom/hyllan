@@ -85,10 +85,12 @@ describe("barcode-registrations", () => {
         barcodeValue: BARCODE,
         symbology: "ean_13",
         pantryItemId: pasta.id,
+        quantityPerScan: "1",
       }),
     ).toEqual({ status: "registered" });
     expect(await findBarcodeRegistration(db, householdId, BARCODE)).toEqual({
       pantryItemId: pasta.id,
+      quantityPerScan: "1",
       itemName: "Pasta",
     });
   });
@@ -99,6 +101,7 @@ describe("barcode-registrations", () => {
       barcodeValue: BARCODE,
       symbology: "ean_13" as const,
       pantryItemId: pasta.id,
+      quantityPerScan: "1",
     };
 
     await registerBarcode(db, householdId, input);
@@ -115,6 +118,7 @@ describe("barcode-registrations", () => {
       barcodeValue: BARCODE,
       symbology: "ean_13",
       pantryItemId: pasta.id,
+      quantityPerScan: "1",
     });
 
     expect(
@@ -122,6 +126,7 @@ describe("barcode-registrations", () => {
         barcodeValue: BARCODE,
         symbology: "ean_13",
         pantryItemId: rice.id,
+        quantityPerScan: "1",
       }),
     ).toEqual({
       status: "conflict",
@@ -139,6 +144,7 @@ describe("barcode-registrations", () => {
       barcodeValue: BARCODE,
       symbology: "ean_13",
       pantryItemId: pasta.id,
+      quantityPerScan: "1",
     });
 
     expect(
@@ -146,12 +152,76 @@ describe("barcode-registrations", () => {
         barcodeValue: BARCODE,
         symbology: "ean_13",
         pantryItemId: rice.id,
+        quantityPerScan: "1",
         reassign: true,
       }),
     ).toEqual({ status: "registered" });
     expect(await findBarcodeRegistration(db, householdId, BARCODE)).toEqual({
       pantryItemId: rice.id,
+      quantityPerScan: "1",
       itemName: "Rice",
+    });
+  });
+
+  it("remembers how much one scan of the barcode is", async () => {
+    const pasta = await addItem("Pasta");
+
+    await registerBarcode(db, householdId, {
+      barcodeValue: BARCODE,
+      symbology: "ean_13",
+      pantryItemId: pasta.id,
+      quantityPerScan: "500",
+    });
+
+    expect(
+      (await findBarcodeRegistration(db, householdId, BARCODE))
+        ?.quantityPerScan,
+    ).toBe("500");
+  });
+
+  it("updates the amount when a barcode is registered to its own item again", async () => {
+    const pasta = await addItem("Pasta");
+    const input = {
+      barcodeValue: BARCODE,
+      symbology: "ean_13" as const,
+      pantryItemId: pasta.id,
+    };
+    await registerBarcode(db, householdId, { ...input, quantityPerScan: "1" });
+
+    expect(
+      await registerBarcode(db, householdId, {
+        ...input,
+        quantityPerScan: "0.5",
+      }),
+    ).toEqual({ status: "registered" });
+    expect(
+      (await findBarcodeRegistration(db, householdId, BARCODE))
+        ?.quantityPerScan,
+    ).toBe("0.5");
+  });
+
+  it("takes the new amount along with a confirmed reassignment", async () => {
+    const pasta = await addItem("Pasta");
+    const rice = await addItem("Rice");
+    await registerBarcode(db, householdId, {
+      barcodeValue: BARCODE,
+      symbology: "ean_13",
+      pantryItemId: pasta.id,
+      quantityPerScan: "1",
+    });
+
+    await registerBarcode(db, householdId, {
+      barcodeValue: BARCODE,
+      symbology: "ean_13",
+      pantryItemId: rice.id,
+      quantityPerScan: "2",
+      reassign: true,
+    });
+
+    expect(await findBarcodeRegistration(db, householdId, BARCODE)).toEqual({
+      pantryItemId: rice.id,
+      itemName: "Rice",
+      quantityPerScan: "2",
     });
   });
 
@@ -161,11 +231,13 @@ describe("barcode-registrations", () => {
       barcodeValue: BARCODE,
       symbology: "ean_13",
       pantryItemId: pasta.id,
+      quantityPerScan: "1",
     });
     await registerBarcode(db, householdId, {
       barcodeValue: "96385074",
       symbology: "ean_8",
       pantryItemId: pasta.id,
+      quantityPerScan: "1",
     });
 
     expect(
@@ -185,6 +257,7 @@ describe("barcode-registrations", () => {
         barcodeValue: BARCODE,
         symbology: "ean_13",
         pantryItemId: theirs.id,
+        quantityPerScan: "1",
       }),
     ).toEqual({ status: "item-not-found" });
     expect(await db.select().from(barcodeRegistrations)).toHaveLength(0);
@@ -197,6 +270,7 @@ describe("barcode-registrations", () => {
       barcodeValue: BARCODE,
       symbology: "ean_13",
       pantryItemId: ours.id,
+      quantityPerScan: "1",
     });
 
     expect(
@@ -207,6 +281,7 @@ describe("barcode-registrations", () => {
         barcodeValue: BARCODE,
         symbology: "ean_13",
         pantryItemId: theirs.id,
+        quantityPerScan: "1",
       }),
     ).toEqual({ status: "registered" });
     expect(
@@ -220,6 +295,7 @@ describe("barcode-registrations", () => {
       barcodeValue: BARCODE,
       symbology: "ean_13",
       pantryItemId: pasta.id,
+      quantityPerScan: "1",
     });
 
     await deletePantryItem(db, householdId, pasta.id);

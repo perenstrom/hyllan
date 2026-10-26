@@ -87,6 +87,7 @@ export async function seedScenario(
       barcodeValue: registration.value,
       symbology: "ean_13",
       pantryItemId: item.id,
+      quantityPerScan: registration.quantityPerScan ?? "1",
       reassign: true,
     });
   }

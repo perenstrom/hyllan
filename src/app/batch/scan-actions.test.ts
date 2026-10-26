@@ -73,10 +73,11 @@ beforeEach(() => {
 });
 
 describe("scanBatchBarcode", () => {
-  it("applies a flat +1 to a registered barcode's item in add mode", async () => {
+  it("applies one scan's worth to a registered barcode's item in add mode", async () => {
     findBarcodeRegistrationMock.mockResolvedValue({
       pantryItemId: "pasta",
       itemName: "Pasta",
+      quantityPerScan: "1",
     });
     adjustPantryItemQuantityByMock.mockResolvedValue(adjusted("4", "1"));
 
@@ -109,21 +110,41 @@ describe("scanBatchBarcode", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith("/");
   });
 
-  it("applies a flat -1 in remove mode", async () => {
+  it("removes the registration's amount in remove mode", async () => {
     findBarcodeRegistrationMock.mockResolvedValue({
-      pantryItemId: "pasta",
-      itemName: "Pasta",
+      pantryItemId: "flour",
+      itemName: "Flour",
+      quantityPerScan: "500",
     });
-    adjustPantryItemQuantityByMock.mockResolvedValue(adjusted("2", "-1"));
+    adjustPantryItemQuantityByMock.mockResolvedValue(adjusted("1500", "-500"));
 
     await scanBatchBarcode(EAN, "ean_13", "remove");
 
     expect(adjustPantryItemQuantityByMock).toHaveBeenCalledWith(
       {},
       "household-1",
-      "pasta",
+      "flour",
       null,
-      "-1",
+      "-500",
+    );
+  });
+
+  it("adds the registration's amount, not a flat one, for an item kept in grams", async () => {
+    findBarcodeRegistrationMock.mockResolvedValue({
+      pantryItemId: "flour",
+      itemName: "Flour",
+      quantityPerScan: "500",
+    });
+    adjustPantryItemQuantityByMock.mockResolvedValue(adjusted("2500", "500"));
+
+    await scanBatchBarcode(EAN, "ean_13", "add");
+
+    expect(adjustPantryItemQuantityByMock).toHaveBeenCalledWith(
+      {},
+      "household-1",
+      "flour",
+      null,
+      "500",
     );
   });
 
@@ -176,7 +197,7 @@ describe("registerScannedBarcode", () => {
 
     const result = await registerScannedBarcode(
       BARCODE,
-      { itemId: "pasta" },
+      { target: { itemId: "pasta" }, quantityPerScan: "1" },
       "add",
       false,
     );
@@ -185,6 +206,7 @@ describe("registerScannedBarcode", () => {
       barcodeValue: EAN,
       symbology: "ean_13",
       pantryItemId: "pasta",
+      quantityPerScan: "1",
       reassign: false,
     });
     expect(result).toEqual({
@@ -208,7 +230,7 @@ describe("registerScannedBarcode", () => {
 
     const result = await registerScannedBarcode(
       BARCODE,
-      { itemId: "pasta" },
+      { target: { itemId: "pasta" }, quantityPerScan: "1" },
       "add",
       false,
     );
@@ -221,7 +243,12 @@ describe("registerScannedBarcode", () => {
     registerBarcodeMock.mockResolvedValue({ status: "registered" });
     adjustPantryItemQuantityByMock.mockResolvedValue(adjusted("2", "-1"));
 
-    await registerScannedBarcode(BARCODE, { itemId: "pasta" }, "remove", true);
+    await registerScannedBarcode(
+      BARCODE,
+      { target: { itemId: "pasta" }, quantityPerScan: "1" },
+      "remove",
+      true,
+    );
 
     expect(registerBarcodeMock).toHaveBeenCalledWith(
       {},
@@ -250,7 +277,7 @@ describe("registerScannedBarcode", () => {
 
     const result = await registerScannedBarcode(
       BARCODE,
-      { newItemName: " Fusilli " },
+      { target: { newItemName: " Fusilli " }, quantityPerScan: "1" },
       "add",
       false,
     );
@@ -283,11 +310,12 @@ describe("registerScannedBarcode", () => {
     findBarcodeRegistrationMock.mockResolvedValue({
       pantryItemId: "rice",
       itemName: "Rice",
+      quantityPerScan: "1",
     });
 
     const result = await registerScannedBarcode(
       BARCODE,
-      { newItemName: "Fusilli" },
+      { target: { newItemName: "Fusilli" }, quantityPerScan: "1" },
       "add",
       false,
     );
@@ -296,10 +324,92 @@ describe("registerScannedBarcode", () => {
     expect(addPantryItemMock).not.toHaveBeenCalled();
   });
 
+  it("registers the chosen amount and applies it, rather than a flat one", async () => {
+    registerBarcodeMock.mockResolvedValue({ status: "registered" });
+    adjustPantryItemQuantityByMock.mockResolvedValue(adjusted("2500", "500"));
+
+    await registerScannedBarcode(
+      BARCODE,
+      { target: { itemId: "flour" }, quantityPerScan: " 500 " },
+      "add",
+      false,
+    );
+
+    expect(registerBarcodeMock).toHaveBeenCalledWith(
+      {},
+      "household-1",
+      expect.objectContaining({ quantityPerScan: "500" }),
+    );
+    expect(adjustPantryItemQuantityByMock).toHaveBeenCalledWith(
+      {},
+      "household-1",
+      "flour",
+      null,
+      "500",
+    );
+  });
+
+  it("creates a new item in the chosen unit, starting at one scan's worth", async () => {
+    findBarcodeRegistrationMock.mockResolvedValue(undefined);
+    addPantryItemMock.mockResolvedValue({
+      id: "flour",
+      name: "Flour",
+      unit: "g",
+      quantity: "500",
+      buckets: [],
+    });
+    registerBarcodeMock.mockResolvedValue({ status: "registered" });
+
+    const result = await registerScannedBarcode(
+      BARCODE,
+      {
+        target: { newItemName: "Flour" },
+        quantityPerScan: "500",
+        newItemUnit: "g",
+      },
+      "add",
+      false,
+    );
+
+    expect(addPantryItemMock).toHaveBeenCalledWith({}, "household-1", {
+      name: "Flour",
+      quantity: "500",
+      unit: "g",
+      locationId: null,
+    });
+    expect(registerBarcodeMock).toHaveBeenCalledWith(
+      {},
+      "household-1",
+      expect.objectContaining({
+        pantryItemId: "flour",
+        quantityPerScan: "500",
+      }),
+    );
+    expect(result).toMatchObject({ ok: true, entry: { delta: "500" } });
+  });
+
+  it.each(["0", "-1", "abc", ""])(
+    "rejects %j as an amount without registering anything",
+    async (amount) => {
+      const result = await registerScannedBarcode(
+        BARCODE,
+        { target: { itemId: "pasta" }, quantityPerScan: amount },
+        "add",
+        false,
+      );
+
+      expect(result).toEqual({
+        ok: false,
+        error: "Amount must be a positive number.",
+      });
+      expect(registerBarcodeMock).not.toHaveBeenCalled();
+    },
+  );
+
   it("never creates in remove mode", async () => {
     const result = await registerScannedBarcode(
       BARCODE,
-      { newItemName: "Fusilli" },
+      { target: { newItemName: "Fusilli" }, quantityPerScan: "1" },
       "remove",
       false,
     );
@@ -311,7 +421,7 @@ describe("registerScannedBarcode", () => {
   it("rejects a barcode that isn't in canonical form", async () => {
     const result = await registerScannedBarcode(
       { value: "036000291452", symbology: "upc_a" },
-      { itemId: "pasta" },
+      { target: { itemId: "pasta" }, quantityPerScan: "1" },
       "add",
       false,
     );
@@ -324,7 +434,12 @@ describe("registerScannedBarcode", () => {
     registerBarcodeMock.mockResolvedValue({ status: "item-not-found" });
 
     expect(
-      await registerScannedBarcode(BARCODE, { itemId: "gone" }, "add", false),
+      await registerScannedBarcode(
+        BARCODE,
+        { target: { itemId: "gone" }, quantityPerScan: "1" },
+        "add",
+        false,
+      ),
     ).toEqual({ ok: false, error: "Item not found." });
   });
 });

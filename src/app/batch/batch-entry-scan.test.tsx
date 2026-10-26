@@ -79,8 +79,17 @@ const BEANS = {
 const EAN = "7310865004703";
 const BARCODE: ScannedBarcode = { value: EAN, symbology: "ean_13" };
 
+const FLOUR = {
+  id: "flour",
+  name: "Flour",
+  unit: "g" as const,
+  quantity: "1000",
+};
+
 function renderBatch(direction: "add" | "remove") {
-  return render(<BatchEntry direction={direction} items={[PASTA, BEANS]} />);
+  return render(
+    <BatchEntry direction={direction} items={[PASTA, BEANS, FLOUR]} />,
+  );
 }
 
 function openScanner() {
@@ -111,6 +120,11 @@ function entry(
 
 function sessionLog() {
   return screen.findByRole("list", { name: "This session" });
+}
+
+// Step two of the panel: confirm how much one scan is (default 1).
+function confirmAmount(panel: HTMLElement, label = "Add 1") {
+  fireEvent.click(within(panel).getByRole("button", { name: label }));
 }
 
 function registerPanel() {
@@ -231,10 +245,11 @@ describe("BatchEntry scanning", () => {
       target: { value: "Bea" },
     });
     fireEvent.click(within(panel).getByRole("button", { name: /Beans/ }));
+    confirmAmount(panel);
 
     expect(registerScannedBarcodeMock).toHaveBeenCalledWith(
       BARCODE,
-      { itemId: "beans" },
+      { target: { itemId: "beans" }, quantityPerScan: "1" },
       "add",
       false,
     );
@@ -272,10 +287,15 @@ describe("BatchEntry scanning", () => {
         name: "Add “Fusilli” as a new item",
       }),
     );
+    confirmAmount(panel);
 
     expect(registerScannedBarcodeMock).toHaveBeenCalledWith(
       BARCODE,
-      { newItemName: "Fusilli" },
+      {
+        target: { newItemName: "Fusilli" },
+        quantityPerScan: "1",
+        newItemUnit: "count",
+      },
       "add",
       false,
     );
@@ -321,23 +341,141 @@ describe("BatchEntry scanning", () => {
     const field = within(await registerPanel()).getByLabelText("Pantry item");
     fireEvent.change(field, { target: { value: "pasta" } });
     fireEvent.keyDown(field, { key: "Enter" });
+    fireEvent.keyDown(screen.getByLabelText(/Each scan of this barcode/), {
+      key: "Enter",
+    });
     expect(registerScannedBarcodeMock).toHaveBeenLastCalledWith(
       BARCODE,
-      { itemId: "pasta" },
+      { target: { itemId: "pasta" }, quantityPerScan: "1" },
       "add",
       false,
     );
+
+    await within(await sessionLog()).findByText("Pasta");
 
     await decode("4006381333931", "ean_13");
     const next = within(await registerPanel()).getByLabelText("Pantry item");
     fireEvent.change(next, { target: { value: "Fusilli" } });
     fireEvent.keyDown(next, { key: "Enter" });
+    fireEvent.keyDown(screen.getByLabelText(/Each scan of this barcode/), {
+      key: "Enter",
+    });
     expect(registerScannedBarcodeMock).toHaveBeenLastCalledWith(
       BARCODE,
-      { newItemName: "Fusilli" },
+      {
+        target: { newItemName: "Fusilli" },
+        quantityPerScan: "1",
+        newItemUnit: "count",
+      },
       "add",
       false,
     );
+  });
+
+  it("registers how much one scan is, in a picked item's own unit", async () => {
+    scanBatchBarcodeMock.mockResolvedValue({
+      ok: true,
+      kind: "unregistered",
+      barcode: BARCODE,
+    });
+    registerScannedBarcodeMock.mockResolvedValue({
+      ok: true,
+      entry: {
+        ...entry(PASTA, "500", "1500"),
+        itemId: "flour",
+        itemName: "Flour",
+        unit: "g",
+      },
+    });
+    renderBatch("add");
+    openScanner();
+    await decode();
+
+    const panel = await registerPanel();
+    fireEvent.change(within(panel).getByLabelText("Pantry item"), {
+      target: { value: "Flo" },
+    });
+    fireEvent.click(within(panel).getByRole("button", { name: "Flour" }));
+    expect(panel).toHaveTextContent("Each scan of this barcode adds");
+    expect(within(panel).queryByLabelText("Unit")).not.toBeInTheDocument();
+    fireEvent.change(within(panel).getByLabelText(/Each scan/), {
+      target: { value: "500" },
+    });
+    confirmAmount(panel, "Add 500 g");
+
+    expect(registerScannedBarcodeMock).toHaveBeenCalledWith(
+      BARCODE,
+      { target: { itemId: "flour" }, quantityPerScan: "500" },
+      "add",
+      false,
+    );
+    await within(await sessionLog()).findByText("+500 g → 1500 g");
+  });
+
+  it("lets a new item's unit be chosen alongside its per-scan amount", async () => {
+    scanBatchBarcodeMock.mockResolvedValue({
+      ok: true,
+      kind: "unregistered",
+      barcode: BARCODE,
+    });
+    registerScannedBarcodeMock.mockResolvedValue({
+      ok: true,
+      entry: entry(PASTA, "1", "1"),
+    });
+    renderBatch("add");
+    openScanner();
+    await decode();
+
+    const panel = await registerPanel();
+    fireEvent.change(within(panel).getByLabelText("Pantry item"), {
+      target: { value: "Oats" },
+    });
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Add “Oats” as a new item" }),
+    );
+    fireEvent.change(within(panel).getByLabelText("Unit"), {
+      target: { value: "kg" },
+    });
+    fireEvent.change(within(panel).getByLabelText(/Each scan/), {
+      target: { value: "0.75" },
+    });
+    confirmAmount(panel, "Add 0.75 kg");
+
+    expect(registerScannedBarcodeMock).toHaveBeenCalledWith(
+      BARCODE,
+      {
+        target: { newItemName: "Oats" },
+        quantityPerScan: "0.75",
+        newItemUnit: "kg",
+      },
+      "add",
+      false,
+    );
+  });
+
+  it("won't register a zero or blank amount, and Change goes back to picking", async () => {
+    scanBatchBarcodeMock.mockResolvedValue({
+      ok: true,
+      kind: "unregistered",
+      barcode: BARCODE,
+    });
+    renderBatch("add");
+    openScanner();
+    await decode();
+
+    const panel = await registerPanel();
+    fireEvent.change(within(panel).getByLabelText("Pantry item"), {
+      target: { value: "Flo" },
+    });
+    fireEvent.click(within(panel).getByRole("button", { name: "Flour" }));
+    fireEvent.change(within(panel).getByLabelText(/Each scan/), {
+      target: { value: "0" },
+    });
+    expect(within(panel).getByRole("button", { name: "Add" })).toBeDisabled();
+
+    fireEvent.click(within(panel).getByRole("button", { name: "Change" }));
+    expect(within(panel).getByLabelText("Pantry item")).toBeInTheDocument();
+    expect(registerScannedBarcodeMock).not.toHaveBeenCalled();
   });
 
   it("suggests a looked-up name with Open Food Facts' credit, copying it in only when tapped (ADR 0008)", async () => {
@@ -466,6 +604,7 @@ describe("BatchEntry scanning", () => {
       target: { value: "Bea" },
     });
     fireEvent.click(within(panel).getByRole("button", { name: /Beans/ }));
+    confirmAmount(panel);
 
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toHaveTextContent("Move this barcode to Beans?");
@@ -476,7 +615,7 @@ describe("BatchEntry scanning", () => {
 
     expect(registerScannedBarcodeMock).toHaveBeenLastCalledWith(
       BARCODE,
-      { itemId: "beans" },
+      { target: { itemId: "beans" }, quantityPerScan: "1" },
       "add",
       true,
     );
@@ -503,6 +642,7 @@ describe("BatchEntry scanning", () => {
       target: { value: "Bea" },
     });
     fireEvent.click(within(panel).getByRole("button", { name: /Beans/ }));
+    confirmAmount(panel);
     fireEvent.click(
       within(await screen.findByRole("dialog")).getByRole("button", {
         name: "Cancel",
@@ -543,6 +683,7 @@ describe("BatchEntry scanning", () => {
       target: { value: "Bea" },
     });
     fireEvent.click(within(panel).getByRole("button", { name: /Beans/ }));
+    confirmAmount(panel, "Remove 1");
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Nothing removed — Beans has no unassigned stock.",

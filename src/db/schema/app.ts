@@ -176,6 +176,11 @@ export const barcodeRegistrations = pgTable(
       .references(() => pantryItems.id, { onDelete: "cascade" }),
     barcodeValue: text("barcode_value").notNull(),
     symbology: barcodeSymbologyEnum("symbology").notNull(),
+    // How much one scan of this barcode adds or removes, in the item's own
+    // unit — a pack's barcode stands for a fixed amount (a 500 g bag is
+    // 500, a six-pack counted in cans is 6). Same numeric-as-string shape
+    // as item_locations.quantity.
+    quantityPerScan: numeric("quantity_per_scan").notNull().default("1"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -184,6 +189,10 @@ export const barcodeRegistrations = pgTable(
     uniqueIndex("barcode_registrations_household_id_barcode_value_unique").on(
       table.householdId,
       table.barcodeValue,
+    ),
+    check(
+      "barcode_registrations_quantity_per_scan_positive",
+      sql`${table.quantityPerScan} > 0`,
     ),
   ],
 );

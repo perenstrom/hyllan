@@ -50,6 +50,13 @@
       "when": 1793021746874,
       "tag": "0006_barcode_registrations",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793025503828,
+      "tag": "0007_barcode_quantity_per_scan",
+      "breakpoints": true
     }
   ]
 }
