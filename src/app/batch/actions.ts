@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { db } from "@/db/client";
 import { requireSessionClaims } from "@/lib/auth";
+import type { ScannedBarcode } from "@/lib/barcode";
 import { getHouseholdForUser } from "@/lib/household";
 import type { PantryItemUnit } from "@/lib/pantry-item";
 import { parseQuantity } from "@/lib/pantry-item";
@@ -22,6 +23,9 @@ export type BatchEntryChange = {
   unit: PantryItemUnit;
   delta: string;
   total: string;
+  // Set when the change came from a scan (PER-308), so the session log can
+  // offer "Wrong item?" against that barcode's registration.
+  barcode?: ScannedBarcode;
 };
 
 export type BatchEntryResult =

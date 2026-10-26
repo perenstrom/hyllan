@@ -43,6 +43,13 @@
       "when": 1792001709924,
       "tag": "0005_minimum_quantity_positive",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793021746874,
+      "tag": "0006_barcode_registrations",
+      "breakpoints": true
     }
   ]
 }

@@ -15,6 +15,14 @@ vi.mock("./actions", () => ({
     createBatchItemMock(name, quantity),
 }));
 
+// Scanning has its own suite (batch-entry-scan.test.tsx); stubbed here so
+// the text-entry tests don't pull in the server-side lookup chain.
+vi.mock("./scan-actions", () => ({
+  scanBatchBarcode: vi.fn(),
+  registerScannedBarcode: vi.fn(),
+  suggestScannedProductName: vi.fn(),
+}));
+
 const { BatchEntry } = await import("./batch-entry");
 
 const RICE = { id: "rice", name: "Rice", unit: "kg" as const, quantity: "3" };
