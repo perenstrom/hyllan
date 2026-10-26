@@ -29,9 +29,8 @@ describe("internalGoTrueFetch", () => {
   });
 
   it("reroutes an /auth/v1 request to the internal URL, stripping the prefix", async () => {
-    const { internalGoTrueFetch } = await loadInternalFetchModule(
-      "http://auth:9999",
-    );
+    const { internalGoTrueFetch } =
+      await loadInternalFetchModule("http://auth:9999");
 
     const fetchOverride = internalGoTrueFetch()!;
     await fetchOverride("https://app.example.com/auth/v1/user", {
@@ -45,9 +44,8 @@ describe("internalGoTrueFetch", () => {
   });
 
   it("preserves the query string when rerouting", async () => {
-    const { internalGoTrueFetch } = await loadInternalFetchModule(
-      "http://auth:9999",
-    );
+    const { internalGoTrueFetch } =
+      await loadInternalFetchModule("http://auth:9999");
 
     const fetchOverride = internalGoTrueFetch()!;
     await fetchOverride(
@@ -61,9 +59,8 @@ describe("internalGoTrueFetch", () => {
   });
 
   it("leaves a request untouched if it doesn't target /auth/v1", async () => {
-    const { internalGoTrueFetch } = await loadInternalFetchModule(
-      "http://auth:9999",
-    );
+    const { internalGoTrueFetch } =
+      await loadInternalFetchModule("http://auth:9999");
 
     const fetchOverride = internalGoTrueFetch()!;
     await fetchOverride("https://app.example.com/api/health");
@@ -75,9 +72,8 @@ describe("internalGoTrueFetch", () => {
   });
 
   it("accepts a URL object as input", async () => {
-    const { internalGoTrueFetch } = await loadInternalFetchModule(
-      "http://auth:9999",
-    );
+    const { internalGoTrueFetch } =
+      await loadInternalFetchModule("http://auth:9999");
 
     const fetchOverride = internalGoTrueFetch()!;
     await fetchOverride(new URL("https://app.example.com/auth/v1/user"));
@@ -102,9 +98,8 @@ describe("internalGoTrueClientOptions", () => {
   });
 
   it("wraps the fetch override under global.fetch when configured", async () => {
-    const { internalGoTrueClientOptions } = await loadInternalFetchModule(
-      "http://auth:9999",
-    );
+    const { internalGoTrueClientOptions } =
+      await loadInternalFetchModule("http://auth:9999");
 
     expect(internalGoTrueClientOptions().global?.fetch).toBeInstanceOf(
       Function,
