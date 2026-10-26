@@ -13,6 +13,8 @@ const DEVICE_STORAGE_KEY = "hyllan:batch-scan-camera-device";
 // reads a second is plenty for a pack held still (PER-276 §6).
 const DETECT_INTERVAL_MS = 250;
 const RESCAN_GAP_MS = 1500;
+// How long the green "got it" pulse holds before fading back out.
+const SCAN_FLASH_MS = 400;
 
 function readStoredDeviceId(): string | null {
   try {
@@ -154,6 +156,12 @@ export function BarcodeScanner({ paused, onDetected }: Props) {
     forgetDevice,
   );
   const [decoderFailed, setDecoderFailed] = useState(false);
+  // Confirms a read the instant it happens, on the camera itself where the
+  // household is looking — the log entry only lands once the server
+  // answers, and further down the page.
+  const [flashing, setFlashing] = useState(false);
+  const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(flashTimer.current), []);
 
   // Read through refs so the decode loop isn't torn down and restarted
   // every time the page pauses or re-renders.
@@ -195,6 +203,12 @@ export function BarcodeScanner({ paused, onDetected }: Props) {
               sightings.trackWithoutCounting(found.rawValue, now);
             } else if (sightings.countsAsNewScan(found.rawValue, now)) {
               navigator.vibrate?.(40);
+              clearTimeout(flashTimer.current);
+              setFlashing(true);
+              flashTimer.current = setTimeout(
+                () => setFlashing(false),
+                SCAN_FLASH_MS,
+              );
               onDetectedRef.current(found.rawValue, found.format);
             }
           } catch {
@@ -261,7 +275,10 @@ export function BarcodeScanner({ paused, onDetected }: Props) {
           ))}
         </select>
       )}
-      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-black sm:aspect-auto sm:h-48">
+      <div
+        data-scan-flash={flashing}
+        className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-black sm:aspect-auto sm:h-48"
+      >
         <video
           ref={videoRef}
           autoPlay
@@ -274,9 +291,21 @@ export function BarcodeScanner({ paused, onDetected }: Props) {
         {state === "granted" && !decoderFailed && (
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-8 top-1/2 h-16 -translate-y-1/2 rounded border-2 border-white/70"
+            className={`pointer-events-none absolute inset-x-8 top-1/2 h-16 -translate-y-1/2 rounded border-2 motion-safe:transition-colors motion-safe:duration-300 ${
+              flashing ? "border-emerald-400" : "border-white/70"
+            }`}
           />
         )}
+        {/* Drawn over the video rather than as the box's own border, so
+            the pulse can't nudge the layout. Snaps on, fades off. */}
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-0 rounded-lg ring-4 ring-emerald-500 ring-inset ${
+            flashing
+              ? "opacity-100"
+              : "opacity-0 motion-safe:transition-opacity motion-safe:duration-500"
+          }`}
+        />
         {message && (
           <p className="absolute inset-0 flex items-center justify-center bg-black/85 px-4 text-center text-sm text-white">
             {message}
