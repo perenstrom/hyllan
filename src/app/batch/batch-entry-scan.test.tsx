@@ -474,7 +474,7 @@ describe("BatchEntry scanning", () => {
     expect(within(panel).getByRole("button", { name: "Add" })).toBeDisabled();
 
     fireEvent.click(within(panel).getByRole("button", { name: "Change" }));
-    expect(within(panel).getByLabelText("Pantry item")).toBeInTheDocument();
+    expect(within(panel).getByLabelText("Pantry item")).toHaveValue("Flo");
     expect(registerScannedBarcodeMock).not.toHaveBeenCalled();
   });
 
