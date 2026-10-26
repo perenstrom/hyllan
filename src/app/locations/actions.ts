@@ -12,7 +12,7 @@ import {
   renameLocation,
 } from "@/lib/locations";
 import { parseQuantity } from "@/lib/pantry-item";
-import { setPantryItemLocationQuantity } from "@/lib/pantry-items";
+import { setBucket } from "@/lib/quantity";
 
 export type CreateLocationResult =
   | { ok: true; location: { id: string; name: string } }
@@ -120,7 +120,7 @@ export async function setStockTakeQuantity(
     };
   }
 
-  const updated = await setPantryItemLocationQuantity(
+  const updated = await setBucket(
     db,
     household.id,
     itemId,

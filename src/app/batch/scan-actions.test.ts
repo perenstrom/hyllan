@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getClaimsMock = vi.fn();
 const getHouseholdForUserMock = vi.fn();
 const addPantryItemMock = vi.fn();
-const adjustPantryItemQuantityByMock = vi.fn();
+const adjustPantryItemQuantityMock = vi.fn();
 const findBarcodeRegistrationMock = vi.fn();
 const registerBarcodeMock = vi.fn();
 const suggestProductNameMock = vi.fn();
@@ -28,7 +28,7 @@ class PantryItemUnitMismatchError extends Error {
 
 vi.mock("@/lib/pantry-items", () => ({
   addPantryItem: addPantryItemMock,
-  adjustPantryItemQuantityBy: adjustPantryItemQuantityByMock,
+  adjustPantryItemQuantity: adjustPantryItemQuantityMock,
   PantryItemUnitMismatchError,
 }));
 
@@ -79,7 +79,7 @@ describe("scanBatchBarcode", () => {
       itemName: "Pasta",
       quantityPerScan: "1",
     });
-    adjustPantryItemQuantityByMock.mockResolvedValue(adjusted("4", "1"));
+    adjustPantryItemQuantityMock.mockResolvedValue(adjusted("4", "1"));
 
     const result = await scanBatchBarcode(EAN, "ean_13", "add");
 
@@ -88,7 +88,7 @@ describe("scanBatchBarcode", () => {
       "household-1",
       EAN,
     );
-    expect(adjustPantryItemQuantityByMock).toHaveBeenCalledWith(
+    expect(adjustPantryItemQuantityMock).toHaveBeenCalledWith(
       {},
       "household-1",
       "pasta",
@@ -116,11 +116,11 @@ describe("scanBatchBarcode", () => {
       itemName: "Flour",
       quantityPerScan: "500",
     });
-    adjustPantryItemQuantityByMock.mockResolvedValue(adjusted("1500", "-500"));
+    adjustPantryItemQuantityMock.mockResolvedValue(adjusted("1500", "-500"));
 
     await scanBatchBarcode(EAN, "ean_13", "remove");
 
-    expect(adjustPantryItemQuantityByMock).toHaveBeenCalledWith(
+    expect(adjustPantryItemQuantityMock).toHaveBeenCalledWith(
       {},
       "household-1",
       "flour",
@@ -135,11 +135,11 @@ describe("scanBatchBarcode", () => {
       itemName: "Flour",
       quantityPerScan: "500",
     });
-    adjustPantryItemQuantityByMock.mockResolvedValue(adjusted("2500", "500"));
+    adjustPantryItemQuantityMock.mockResolvedValue(adjusted("2500", "500"));
 
     await scanBatchBarcode(EAN, "ean_13", "add");
 
-    expect(adjustPantryItemQuantityByMock).toHaveBeenCalledWith(
+    expect(adjustPantryItemQuantityMock).toHaveBeenCalledWith(
       {},
       "household-1",
       "flour",
@@ -175,7 +175,7 @@ describe("scanBatchBarcode", () => {
       kind: "unregistered",
       barcode: BARCODE,
     });
-    expect(adjustPantryItemQuantityByMock).not.toHaveBeenCalled();
+    expect(adjustPantryItemQuantityMock).not.toHaveBeenCalled();
   });
 
   it("rejects a malformed barcode or unexpected symbology", async () => {
@@ -193,7 +193,7 @@ describe("scanBatchBarcode", () => {
 describe("registerScannedBarcode", () => {
   it("registers the barcode to the picked item and applies +1 in the same action", async () => {
     registerBarcodeMock.mockResolvedValue({ status: "registered" });
-    adjustPantryItemQuantityByMock.mockResolvedValue(adjusted("4", "1"));
+    adjustPantryItemQuantityMock.mockResolvedValue(adjusted("4", "1"));
 
     const result = await registerScannedBarcode(
       BARCODE,
@@ -236,12 +236,12 @@ describe("registerScannedBarcode", () => {
     );
 
     expect(result).toEqual({ ok: false, conflict: { itemName: "Rice" } });
-    expect(adjustPantryItemQuantityByMock).not.toHaveBeenCalled();
+    expect(adjustPantryItemQuantityMock).not.toHaveBeenCalled();
   });
 
   it("passes a confirmed reassignment through and applies -1 in remove mode", async () => {
     registerBarcodeMock.mockResolvedValue({ status: "registered" });
-    adjustPantryItemQuantityByMock.mockResolvedValue(adjusted("2", "-1"));
+    adjustPantryItemQuantityMock.mockResolvedValue(adjusted("2", "-1"));
 
     await registerScannedBarcode(
       BARCODE,
@@ -255,7 +255,7 @@ describe("registerScannedBarcode", () => {
       "household-1",
       expect.objectContaining({ reassign: true }),
     );
-    expect(adjustPantryItemQuantityByMock).toHaveBeenCalledWith(
+    expect(adjustPantryItemQuantityMock).toHaveBeenCalledWith(
       {},
       "household-1",
       "pasta",
@@ -326,7 +326,7 @@ describe("registerScannedBarcode", () => {
 
   it("registers the chosen amount and applies it, rather than a flat one", async () => {
     registerBarcodeMock.mockResolvedValue({ status: "registered" });
-    adjustPantryItemQuantityByMock.mockResolvedValue(adjusted("2500", "500"));
+    adjustPantryItemQuantityMock.mockResolvedValue(adjusted("2500", "500"));
 
     await registerScannedBarcode(
       BARCODE,
@@ -340,7 +340,7 @@ describe("registerScannedBarcode", () => {
       "household-1",
       expect.objectContaining({ quantityPerScan: "500" }),
     );
-    expect(adjustPantryItemQuantityByMock).toHaveBeenCalledWith(
+    expect(adjustPantryItemQuantityMock).toHaveBeenCalledWith(
       {},
       "household-1",
       "flour",

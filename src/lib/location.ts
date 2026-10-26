@@ -108,7 +108,7 @@ export function quantityAtLocation(
 }
 
 // An item's displayed total (CONTEXT.md "Quantity") — the sum of every
-// bucket it holds, shared by the server (pantry-items.ts) and the client's
+// bucket it holds, shared by the server (quantity.ts) and the client's
 // optimistic-update path (signed-in-home.tsx) so both compute it the same
 // way.
 export function bucketsTotal(

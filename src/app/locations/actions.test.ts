@@ -5,7 +5,7 @@ const getHouseholdForUserMock = vi.fn();
 const addLocationMock = vi.fn();
 const renameLocationMock = vi.fn();
 const deleteLocationMock = vi.fn();
-const setPantryItemLocationQuantityMock = vi.fn();
+const setBucketMock = vi.fn();
 const revalidatePathMock = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -25,8 +25,8 @@ vi.mock("@/lib/locations", () => ({
   DuplicateLocationNameError,
 }));
 
-vi.mock("@/lib/pantry-items", () => ({
-  setPantryItemLocationQuantity: setPantryItemLocationQuantityMock,
+vi.mock("@/lib/quantity", () => ({
+  setBucket: setBucketMock,
 }));
 
 vi.mock("next/cache", () => ({
@@ -169,7 +169,7 @@ describe("setStockTakeQuantity", () => {
   beforeEach(() => {
     getClaimsMock.mockReset();
     getHouseholdForUserMock.mockReset();
-    setPantryItemLocationQuantityMock.mockReset();
+    setBucketMock.mockReset();
     revalidatePathMock.mockReset();
 
     getClaimsMock.mockResolvedValue({ data: { claims: { sub: "user-1" } } });
@@ -177,11 +177,11 @@ describe("setStockTakeQuantity", () => {
   });
 
   it("sets the item's quantity at the location within the signed-in user's household and revalidates", async () => {
-    setPantryItemLocationQuantityMock.mockResolvedValue({ id: "item-1" });
+    setBucketMock.mockResolvedValue({ buckets: [], total: "0" });
 
     const result = await setStockTakeQuantity("item-1", "loc-1", "7");
 
-    expect(setPantryItemLocationQuantityMock).toHaveBeenCalledExactlyOnceWith(
+    expect(setBucketMock).toHaveBeenCalledExactlyOnceWith(
       {},
       "household-1",
       "item-1",
@@ -200,11 +200,11 @@ describe("setStockTakeQuantity", () => {
       ok: false,
       error: "Quantity must be zero or a positive number.",
     });
-    expect(setPantryItemLocationQuantityMock).not.toHaveBeenCalled();
+    expect(setBucketMock).not.toHaveBeenCalled();
   });
 
   it("accepts zero", async () => {
-    setPantryItemLocationQuantityMock.mockResolvedValue({ id: "item-1" });
+    setBucketMock.mockResolvedValue({ buckets: [], total: "0" });
 
     const result = await setStockTakeQuantity("item-1", "loc-1", "0");
 
@@ -212,7 +212,7 @@ describe("setStockTakeQuantity", () => {
   });
 
   it("returns an error when the item doesn't belong to the household", async () => {
-    setPantryItemLocationQuantityMock.mockResolvedValue(undefined);
+    setBucketMock.mockResolvedValue(undefined);
 
     const result = await setStockTakeQuantity("item-1", "loc-1", "7");
 

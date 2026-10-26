@@ -1,21 +1,20 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/db/schema";
-import { itemLocations, locations, pantryItems } from "@/db/schema";
+import { pantryItems } from "@/db/schema";
 import { isUniqueViolation } from "./db-errors";
-import {
-  locationIdCondition,
-  setBucketQuantity,
-  upsertBucketQuantity,
-} from "./item-locations";
-import { bucketsTotal, type PantryItemBucket } from "./location";
+import type { PantryItemBucket } from "./location";
 import type { PantryItemFormInput, PantryItemUnit } from "./pantry-item";
+import { normalizePantryItemName } from "./pantry-item";
 import {
-  decrementQuantity,
-  incrementQuantity,
-  normalizePantryItemName,
-} from "./pantry-item";
+  adjustBucket,
+  fetchItemQuantities,
+  type BucketAdjustment,
+  type ItemQuantity,
+  relocateBucket,
+  setBucket,
+} from "./quantity";
 
 // Generic over the query-result HKT (rather than tied to the app's
 // postgres-js client) so the same functions run against both the real
@@ -32,52 +31,14 @@ export type PantryItemWithLocations = typeof pantryItems.$inferSelect & {
   buckets: PantryItemBucket[];
 };
 
-// One query for however many items need their buckets, rather than one
-// query per item — used by both listPantryItems (many items) and
-// getPantryItem/addPantryItem/updatePantryItem (one item, for a uniform
-// code path).
-async function fetchBucketsByItem<TQueryResult extends PgQueryResultHKT>(
-  db: Database<TQueryResult>,
-  itemIds: string[],
-): Promise<Map<string, PantryItemBucket[]>> {
-  const bucketsByItem = new Map<string, PantryItemBucket[]>();
-  if (itemIds.length === 0) {
-    return bucketsByItem;
-  }
-
-  const rows = await db
-    .select({
-      pantryItemId: itemLocations.pantryItemId,
-      locationId: itemLocations.locationId,
-      locationName: locations.name,
-      quantity: itemLocations.quantity,
-    })
-    .from(itemLocations)
-    .leftJoin(locations, eq(itemLocations.locationId, locations.id))
-    .where(inArray(itemLocations.pantryItemId, itemIds));
-
-  for (const row of rows) {
-    const bucket: PantryItemBucket = {
-      locationId: row.locationId,
-      locationName: row.locationName,
-      quantity: row.quantity,
-    };
-    const existing = bucketsByItem.get(row.pantryItemId);
-    if (existing) {
-      existing.push(bucket);
-    } else {
-      bucketsByItem.set(row.pantryItemId, [bucket]);
-    }
-  }
-
-  return bucketsByItem;
-}
-
+// Composes an item row with its Buckets as read or written by the Quantity
+// module — an item with no rows at all (shouldn't happen; see setBucket)
+// reads as zero.
 function withLocations(
   item: typeof pantryItems.$inferSelect,
-  buckets: PantryItemBucket[],
+  { buckets, total }: ItemQuantity = { buckets: [], total: "0" },
 ): PantryItemWithLocations {
-  return { ...item, quantity: bucketsTotal(buckets), buckets };
+  return { ...item, quantity: total, buckets };
 }
 
 export async function listPantryItems<TQueryResult extends PgQueryResultHKT>(
@@ -90,14 +51,12 @@ export async function listPantryItems<TQueryResult extends PgQueryResultHKT>(
     .where(eq(pantryItems.householdId, householdId))
     .orderBy(pantryItems.createdAt);
 
-  const bucketsByItem = await fetchBucketsByItem(
+  const quantities = await fetchItemQuantities(
     db,
     items.map((item) => item.id),
   );
 
-  return items.map((item) =>
-    withLocations(item, bucketsByItem.get(item.id) ?? []),
-  );
+  return items.map((item) => withLocations(item, quantities.get(item.id)));
 }
 
 // Scopes a query to one item within one household, so an item id from
@@ -124,8 +83,8 @@ export async function getPantryItem<TQueryResult extends PgQueryResultHKT>(
     return undefined;
   }
 
-  const bucketsByItem = await fetchBucketsByItem(db, [itemId]);
-  return withLocations(item, bucketsByItem.get(itemId) ?? []);
+  const quantities = await fetchItemQuantities(db, [itemId]);
+  return withLocations(item, quantities.get(itemId));
 }
 
 export type AddPantryItemInput = PantryItemFormInput;
@@ -177,15 +136,20 @@ async function mergeIntoExistingItem<TQueryResult extends PgQueryResultHKT>(
       throw new PantryItemUnitMismatchError(existing.name, existing.unit);
     }
 
-    await upsertBucketQuantity(tx, existing.id, locationId, quantity);
+    const adjusted = await adjustBucket(
+      tx,
+      householdId,
+      existing.id,
+      locationId,
+      quantity,
+    );
     const [touched] = await tx
       .update(pantryItems)
       .set({ updatedAt: new Date() })
       .where(eq(pantryItems.id, existing.id))
       .returning();
 
-    const bucketsByItem = await fetchBucketsByItem(tx, [touched.id]);
-    return withLocations(touched, bucketsByItem.get(touched.id) ?? []);
+    return withLocations(touched, adjusted);
   });
 }
 
@@ -214,24 +178,28 @@ export async function addPantryItem<TQueryResult extends PgQueryResultHKT>(
   }
 
   try {
-    const [inserted] = await db
-      .insert(pantryItems)
-      .values({
+    return await db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(pantryItems)
+        .values({
+          householdId,
+          name: input.name.trim(),
+          unit: input.unit,
+          minimumQuantity: input.minimumQuantity ?? null,
+        })
+        .returning();
+
+      // setBucket, not adjustBucket: a new item added with quantity 0 still
+      // needs its first row.
+      const itemQuantity = await setBucket(
+        tx,
         householdId,
-        name: input.name.trim(),
-        unit: input.unit,
-        minimumQuantity: input.minimumQuantity ?? null,
-      })
-      .returning();
-
-    await db.insert(itemLocations).values({
-      pantryItemId: inserted.id,
-      locationId,
-      quantity: input.quantity,
+        inserted.id,
+        locationId,
+        input.quantity,
+      );
+      return withLocations(inserted, itemQuantity);
     });
-
-    const bucketsByItem = await fetchBucketsByItem(db, [inserted.id]);
-    return withLocations(inserted, bucketsByItem.get(inserted.id) ?? []);
   } catch (error) {
     if (!isUniqueViolation(error)) {
       throw error;
@@ -260,104 +228,15 @@ export async function addPantryItem<TQueryResult extends PgQueryResultHKT>(
   }
 }
 
-// Reads the current bucket row with a row lock (SELECT ... FOR UPDATE) and
-// writes the adjusted quantity in the same transaction, so two concurrent
-// increment/decrement clicks on the same (item, location) bucket can't
-// race. Returns undefined when the item isn't in this household, or the
-// bucket doesn't exist (the item-list UI only ever targets a bucket it's
-// currently showing, so a missing bucket means stale client state).
-async function adjustBucketQuantity<TQueryResult extends PgQueryResultHKT>(
-  db: Database<TQueryResult>,
-  householdId: string,
-  itemId: string,
-  locationId: string | null,
-  adjust: (quantity: string) => string,
-) {
-  return db.transaction(async (tx) => {
-    const [item] = await tx
-      .select()
-      .from(pantryItems)
-      .where(scopedToItem(householdId, itemId));
-    if (!item) {
-      return undefined;
-    }
-
-    const [current] = await tx
-      .select()
-      .from(itemLocations)
-      .where(
-        and(
-          eq(itemLocations.pantryItemId, itemId),
-          locationIdCondition(locationId),
-        ),
-      )
-      .for("update");
-    if (!current) {
-      return undefined;
-    }
-
-    const [updated] = await tx
-      .update(itemLocations)
-      .set({ quantity: adjust(current.quantity), updatedAt: new Date() })
-      .where(eq(itemLocations.id, current.id))
-      .returning();
-
-    return updated;
-  });
-}
-
-// Increment/decrement icon buttons (ADR 0004, PER-226) adjust one bucket by
-// exactly one step; decrementQuantity's zero floor is what guarantees a
-// signed-in user can never drive a bucket's quantity negative from here.
-export function incrementPantryItemQuantity<
-  TQueryResult extends PgQueryResultHKT,
->(
-  db: Database<TQueryResult>,
-  householdId: string,
-  itemId: string,
-  locationId: string | null,
-) {
-  return adjustBucketQuantity(
-    db,
-    householdId,
-    itemId,
-    locationId,
-    incrementQuantity,
-  );
-}
-
-export function decrementPantryItemQuantity<
-  TQueryResult extends PgQueryResultHKT,
->(
-  db: Database<TQueryResult>,
-  householdId: string,
-  itemId: string,
-  locationId: string | null,
-) {
-  return adjustBucketQuantity(
-    db,
-    householdId,
-    itemId,
-    locationId,
-    decrementQuantity,
-  );
-}
-
 export type PantryItemAdjustment = {
   item: PantryItemWithLocations;
-  // The signed delta actually written — differs from the requested delta
-  // when a removal hit the zero floor, so an undo can invert exactly what
-  // happened rather than what was asked for.
-  appliedDelta: string;
+  appliedDelta: BucketAdjustment["appliedDelta"];
 };
 
-// Batch entry's add/remove (PER-307): moves one (item, location) bucket by
-// an arbitrary signed delta rather than increment/decrement's single step.
-// A positive delta creates the bucket if it doesn't exist yet (an item
-// whose stock all sits at Locations has no unassigned row); a negative one
-// clamps at zero — same floor as decrementQuantity — instead of rejecting.
-// Returns undefined when the item isn't in this household.
-export async function adjustPantryItemQuantityBy<
+// adjustBucket composed with the item row, for callers that report the
+// item back (batch entry, PER-307/PER-308). Returns undefined when the
+// item isn't in this household.
+export async function adjustPantryItemQuantity<
   TQueryResult extends PgQueryResultHKT,
 >(
   db: Database<TQueryResult>,
@@ -367,84 +246,25 @@ export async function adjustPantryItemQuantityBy<
   delta: string,
 ): Promise<PantryItemAdjustment | undefined> {
   return db.transaction(async (tx) => {
+    const adjusted = await adjustBucket(
+      tx,
+      householdId,
+      itemId,
+      locationId,
+      delta,
+    );
+    if (!adjusted) {
+      return undefined;
+    }
+
     const [item] = await tx
       .select()
       .from(pantryItems)
       .where(scopedToItem(householdId, itemId));
-    if (!item) {
-      return undefined;
-    }
-
-    const [current] = await tx
-      .select()
-      .from(itemLocations)
-      .where(
-        and(
-          eq(itemLocations.pantryItemId, itemId),
-          locationIdCondition(locationId),
-        ),
-      )
-      .for("update");
-
-    // Arithmetic stays in Postgres numeric (not JS floats) so decimal
-    // quantities don't drift — 0.1 + 0.2 must land on exactly 0.3.
-    let appliedDelta = "0";
-    if (current) {
-      const [updated] = await tx
-        .update(itemLocations)
-        .set({
-          quantity: sql`greatest(${itemLocations.quantity} + ${delta}::numeric, 0)`,
-          updatedAt: new Date(),
-        })
-        .where(eq(itemLocations.id, current.id))
-        .returning({
-          appliedDelta: sql<string>`(${itemLocations.quantity} - ${current.quantity}::numeric)::text`,
-        });
-      appliedDelta = updated.appliedDelta;
-    } else if (Number(delta) > 0) {
-      await tx
-        .insert(itemLocations)
-        .values({ pantryItemId: itemId, locationId, quantity: delta });
-      appliedDelta = delta;
-    }
-
-    const bucketsByItem = await fetchBucketsByItem(tx, [itemId]);
     return {
-      item: withLocations(item, bucketsByItem.get(itemId) ?? []),
-      appliedDelta,
+      item: withLocations(item, adjusted),
+      appliedDelta: adjusted.appliedDelta,
     };
-  });
-}
-
-// Stock take's correction (CONTEXT.md "Stock take", ADR 0006): sets one
-// (item, location) bucket's quantity directly to an absolute observed
-// value, creating the bucket row if it doesn't exist yet (shelf-to-stock
-// adding an item not yet recorded at this Location), without touching any
-// of the item's other buckets. Returns undefined when the item isn't in
-// this household — same "stale client state" contract as
-// adjustBucketQuantity above.
-export async function setPantryItemLocationQuantity<
-  TQueryResult extends PgQueryResultHKT,
->(
-  db: Database<TQueryResult>,
-  householdId: string,
-  itemId: string,
-  locationId: string,
-  quantity: string,
-): Promise<PantryItemWithLocations | undefined> {
-  return db.transaction(async (tx) => {
-    const [item] = await tx
-      .select()
-      .from(pantryItems)
-      .where(scopedToItem(householdId, itemId));
-    if (!item) {
-      return undefined;
-    }
-
-    await setBucketQuantity(tx, itemId, locationId, quantity);
-
-    const bucketsByItem = await fetchBucketsByItem(tx, [itemId]);
-    return withLocations(item, bucketsByItem.get(itemId) ?? []);
   });
 }
 
@@ -456,15 +276,12 @@ export type UpdatePantryItemInput = PantryItemFormInput;
 // in the same household is a user mistake to report, not a case to fold
 // into — the caller decides what to tell them.
 //
-// The quantity/location pair is an absolute set on the one bucket this
-// edit targets (creating it if it doesn't exist yet) — editing an item
-// never touches any of its OTHER buckets, so this can't silently zero out
-// quantity held elsewhere. When the submitted locationId differs from
-// input.originalLocationId (the bucket the form was opened against — see
-// PantryItemFormInput), that target bucket moves: its old row is removed
-// and the new location's row is set to input.quantity, rather than
-// leaving a stale duplicate behind at the old location while a second
-// bucket appears at the new one.
+// The quantity/location pair targets the one bucket the form was opened
+// against (input.originalLocationId — see PantryItemFormInput); editing an
+// item never touches any of its OTHER buckets. With the location unchanged
+// it's an absolute set; with a new location the bucket moves there and its
+// quantity is added to whatever that Location already holds (relocateBucket)
+// rather than overwriting it.
 export async function updatePantryItem<TQueryResult extends PgQueryResultHKT>(
   db: Database<TQueryResult>,
   householdId: string,
@@ -495,44 +312,15 @@ export async function updatePantryItem<TQueryResult extends PgQueryResultHKT>(
       return undefined;
     }
 
-    const locationId = input.locationId ?? null;
-    const originalLocationId = input.originalLocationId ?? null;
-
-    if (locationId !== originalLocationId) {
-      await tx
-        .delete(itemLocations)
-        .where(
-          and(
-            eq(itemLocations.pantryItemId, itemId),
-            locationIdCondition(originalLocationId),
-          ),
-        );
-    }
-
-    const [existingBucket] = await tx
-      .select()
-      .from(itemLocations)
-      .where(
-        and(
-          eq(itemLocations.pantryItemId, itemId),
-          locationIdCondition(locationId),
-        ),
-      )
-      .for("update");
-
-    if (existingBucket) {
-      await tx
-        .update(itemLocations)
-        .set({ quantity: input.quantity, updatedAt: new Date() })
-        .where(eq(itemLocations.id, existingBucket.id));
-    } else {
-      await tx
-        .insert(itemLocations)
-        .values({ pantryItemId: itemId, locationId, quantity: input.quantity });
-    }
-
-    const bucketsByItem = await fetchBucketsByItem(tx, [itemId]);
-    return withLocations(updatedItem, bucketsByItem.get(itemId) ?? []);
+    const itemQuantity = await relocateBucket(
+      tx,
+      householdId,
+      itemId,
+      input.originalLocationId ?? null,
+      input.locationId ?? null,
+      input.quantity,
+    );
+    return withLocations(updatedItem, itemQuantity);
   });
 }
 

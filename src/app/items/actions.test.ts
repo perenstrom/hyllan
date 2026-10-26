@@ -3,8 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getClaimsMock = vi.fn();
 const getHouseholdForUserMock = vi.fn();
 const addPantryItemMock = vi.fn();
-const incrementPantryItemQuantityMock = vi.fn();
-const decrementPantryItemQuantityMock = vi.fn();
+const adjustBucketMock = vi.fn();
 const deletePantryItemMock = vi.fn();
 const updatePantryItemMock = vi.fn();
 const redirectMock = vi.fn();
@@ -30,12 +29,14 @@ class PantryItemUnitMismatchError extends Error {
 
 vi.mock("@/lib/pantry-items", () => ({
   addPantryItem: addPantryItemMock,
-  incrementPantryItemQuantity: incrementPantryItemQuantityMock,
-  decrementPantryItemQuantity: decrementPantryItemQuantityMock,
   deletePantryItem: deletePantryItemMock,
   updatePantryItem: updatePantryItemMock,
   DuplicatePantryItemNameError,
   PantryItemUnitMismatchError,
+}));
+
+vi.mock("@/lib/quantity", () => ({
+  adjustBucket: adjustBucketMock,
 }));
 
 // Next.js's real redirect() always throws to halt execution — mirror that
@@ -175,8 +176,7 @@ describe("incrementItem / decrementItem / deleteItem", () => {
   beforeEach(() => {
     getClaimsMock.mockReset();
     getHouseholdForUserMock.mockReset();
-    incrementPantryItemQuantityMock.mockReset();
-    decrementPantryItemQuantityMock.mockReset();
+    adjustBucketMock.mockReset();
     deletePantryItemMock.mockReset();
     revalidatePathMock.mockReset();
     redirectMock.mockReset();
@@ -188,11 +188,12 @@ describe("incrementItem / decrementItem / deleteItem", () => {
   it("increments the item's targeted bucket within the signed-in user's household and revalidates the list", async () => {
     await incrementItem("item-1", "location-1");
 
-    expect(incrementPantryItemQuantityMock).toHaveBeenCalledExactlyOnceWith(
+    expect(adjustBucketMock).toHaveBeenCalledExactlyOnceWith(
       {},
       "household-1",
       "item-1",
       "location-1",
+      "1",
     );
     expect(revalidatePathMock).toHaveBeenCalledWith("/");
   });
@@ -200,22 +201,24 @@ describe("incrementItem / decrementItem / deleteItem", () => {
   it("increments the unassigned bucket when no location is given", async () => {
     await incrementItem("item-1", null);
 
-    expect(incrementPantryItemQuantityMock).toHaveBeenCalledExactlyOnceWith(
+    expect(adjustBucketMock).toHaveBeenCalledExactlyOnceWith(
       {},
       "household-1",
       "item-1",
       null,
+      "1",
     );
   });
 
   it("decrements the item's targeted bucket within the signed-in user's household and revalidates the list", async () => {
     await decrementItem("item-1", "location-1");
 
-    expect(decrementPantryItemQuantityMock).toHaveBeenCalledExactlyOnceWith(
+    expect(adjustBucketMock).toHaveBeenCalledExactlyOnceWith(
       {},
       "household-1",
       "item-1",
       "location-1",
+      "-1",
     );
     expect(revalidatePathMock).toHaveBeenCalledWith("/");
   });
@@ -237,7 +240,7 @@ describe("incrementItem / decrementItem / deleteItem", () => {
     await expect(incrementItem("item-1", null)).rejects.toThrow(
       "REDIRECT:/login",
     );
-    expect(incrementPantryItemQuantityMock).not.toHaveBeenCalled();
+    expect(adjustBucketMock).not.toHaveBeenCalled();
   });
 });
 

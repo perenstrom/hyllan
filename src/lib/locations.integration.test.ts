@@ -188,24 +188,6 @@ describe("deleteLocation", () => {
     ]);
   });
 
-  it("merges into a new unassigned bucket when the item didn't have one yet", async () => {
-    const pantry = await addLocation(db, householdId, "Pantry");
-    const item = await addPantryItem(db, householdId, {
-      name: "Rice",
-      quantity: "3",
-      unit: "kg",
-      locationId: pantry.id,
-    });
-
-    await deleteLocation(db, householdId, pantry.id);
-
-    const refreshed = await getPantryItem(db, householdId, item.id);
-    expect(refreshed?.quantity).toBe("3");
-    expect(refreshed?.buckets).toEqual([
-      expect.objectContaining({ locationId: null, quantity: "3" }),
-    ]);
-  });
-
   it("removes the location itself", async () => {
     const pantry = await addLocation(db, householdId, "Pantry");
 
