@@ -62,7 +62,7 @@ export function DeleteItemDialog({
     <dialog
       ref={dialogRef}
       onClose={() => onOpenChange(false)}
-      className={`${DIALOG_CLASS} sm:w-auto`}
+      className={`${DIALOG_CLASS} sm:max-w-md`}
     >
       <h2 className="text-lg font-semibold text-black dark:text-zinc-50">
         Delete {itemName}?

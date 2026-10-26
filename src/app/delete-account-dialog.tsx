@@ -40,7 +40,7 @@ export function DeleteAccountDialog({ open, onOpenChange }: Props) {
       // Tailwind's Preflight resets margin to 0 on every element, which
       // wipes out the UA stylesheet's `margin: auto` that normally centers
       // dialog:modal — restore it explicitly.
-      className={`${DIALOG_CLASS} sm:w-auto`}
+      className={`${DIALOG_CLASS} sm:max-w-md`}
     >
       <h2 className="text-lg font-semibold text-black dark:text-zinc-50">
         Delete account?
