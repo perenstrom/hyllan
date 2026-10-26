@@ -40,13 +40,15 @@ export function formatQuantity(quantity: string, unit: PantryItemUnit): string {
   return unit === "count" ? amount : `${amount} ${unit}`;
 }
 
+// incrementQuantity/decrementQuantity are the client's optimistic ± update
+// only (signed-in-home.tsx) — plain Number arithmetic for display, replaced
+// by the server's exact numeric result (quantity.ts adjustBucket) on
+// revalidate.
 export function incrementQuantity(quantity: string): string {
   return (Number(quantity) + 1).toString();
 }
 
-// Floors at zero (PER-226) — a signed-in user can never drive a quantity
-// negative, regardless of the value already stored, mirroring the DB's
-// pantry_items_quantity_non_negative check.
+// Floors at zero (PER-226), same as the server's adjustBucket.
 export function decrementQuantity(quantity: string): string {
   const next = Number(quantity) - 1;
   return next > 0 ? next.toString() : "0";

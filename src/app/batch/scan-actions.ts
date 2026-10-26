@@ -26,7 +26,7 @@ import {
 } from "@/lib/pantry-item";
 import {
   addPantryItem,
-  adjustPantryItemQuantityBy,
+  adjustPantryItemQuantity,
   PantryItemUnitMismatchError,
   type PantryItemWithLocations,
 } from "@/lib/pantry-items";
@@ -97,7 +97,7 @@ async function applyScan(
   delta: string,
   barcode: ScannedBarcode,
 ): Promise<BatchEntryResult> {
-  const result = await adjustPantryItemQuantityBy(
+  const result = await adjustPantryItemQuantity(
     db,
     householdId,
     itemId,

@@ -9,13 +9,12 @@ import { getHouseholdForUser } from "@/lib/household";
 import { parsePantryItemInput } from "@/lib/pantry-item";
 import {
   addPantryItem,
-  decrementPantryItemQuantity,
   deletePantryItem,
   DuplicatePantryItemNameError,
-  incrementPantryItemQuantity,
   PantryItemUnitMismatchError,
   updatePantryItem,
 } from "@/lib/pantry-items";
+import { adjustBucket } from "@/lib/quantity";
 
 export type AddItemState = { error: string } | undefined;
 export type EditItemState = { error: string } | undefined;
@@ -53,7 +52,7 @@ export async function incrementItem(
 ): Promise<void> {
   const { claims } = await requireSessionClaims();
   const household = await getHouseholdForUser(db, claims.sub);
-  await incrementPantryItemQuantity(db, household.id, itemId, locationId);
+  await adjustBucket(db, household.id, itemId, locationId, "1");
   revalidatePath("/");
 }
 
@@ -63,7 +62,7 @@ export async function decrementItem(
 ): Promise<void> {
   const { claims } = await requireSessionClaims();
   const household = await getHouseholdForUser(db, claims.sub);
-  await decrementPantryItemQuantity(db, household.id, itemId, locationId);
+  await adjustBucket(db, household.id, itemId, locationId, "-1");
   revalidatePath("/");
 }
 

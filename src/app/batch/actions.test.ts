@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getClaimsMock = vi.fn();
 const getHouseholdForUserMock = vi.fn();
 const addPantryItemMock = vi.fn();
-const adjustPantryItemQuantityByMock = vi.fn();
+const adjustPantryItemQuantityMock = vi.fn();
 const revalidatePathMock = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -25,7 +25,7 @@ class PantryItemUnitMismatchError extends Error {
 
 vi.mock("@/lib/pantry-items", () => ({
   addPantryItem: addPantryItemMock,
-  adjustPantryItemQuantityBy: adjustPantryItemQuantityByMock,
+  adjustPantryItemQuantity: adjustPantryItemQuantityMock,
   PantryItemUnitMismatchError,
 }));
 
@@ -55,14 +55,14 @@ beforeEach(() => {
 
 describe("adjustBatchItem", () => {
   it("applies the signed delta to the item's unassigned bucket and reports the resulting entry", async () => {
-    adjustPantryItemQuantityByMock.mockResolvedValue({
+    adjustPantryItemQuantityMock.mockResolvedValue({
       item: itemWithTotal("1"),
       appliedDelta: "-2",
     });
 
     const result = await adjustBatchItem("item-1", "-3");
 
-    expect(adjustPantryItemQuantityByMock).toHaveBeenCalledWith(
+    expect(adjustPantryItemQuantityMock).toHaveBeenCalledWith(
       {},
       "household-1",
       "item-1",
@@ -89,11 +89,11 @@ describe("adjustBatchItem", () => {
       ok: false,
       error: "Quantity must be a number.",
     });
-    expect(adjustPantryItemQuantityByMock).not.toHaveBeenCalled();
+    expect(adjustPantryItemQuantityMock).not.toHaveBeenCalled();
   });
 
   it("reports an item missing from the household", async () => {
-    adjustPantryItemQuantityByMock.mockResolvedValue(undefined);
+    adjustPantryItemQuantityMock.mockResolvedValue(undefined);
 
     const result = await adjustBatchItem("item-1", "1");
 

@@ -10,7 +10,7 @@ import type { PantryItemUnit } from "@/lib/pantry-item";
 import { parseQuantity } from "@/lib/pantry-item";
 import {
   addPantryItem,
-  adjustPantryItemQuantityBy,
+  adjustPantryItemQuantity,
   PantryItemUnitMismatchError,
 } from "@/lib/pantry-items";
 
@@ -53,7 +53,7 @@ export async function adjustBatchItem(
   const delta = trimmed.startsWith("-") ? `-${magnitude}` : magnitude;
 
   const household = await getHouseholdForUser(db, claims.sub);
-  const result = await adjustPantryItemQuantityBy(
+  const result = await adjustPantryItemQuantity(
     db,
     household.id,
     itemId,
