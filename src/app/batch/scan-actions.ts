@@ -21,7 +21,7 @@ import {
 import { getHouseholdForUser } from "@/lib/household";
 import {
   isPantryItemUnit,
-  parseQuantity,
+  parseQuantityPerScan,
   type PantryItemUnit,
 } from "@/lib/pantry-item";
 import {
@@ -167,8 +167,8 @@ export async function registerScannedBarcode(
     return UNREADABLE;
   }
 
-  const quantityPerScan = parseQuantity(choice.quantityPerScan.trim());
-  if (quantityPerScan === null || Number(quantityPerScan) <= 0) {
+  const quantityPerScan = parseQuantityPerScan(choice.quantityPerScan);
+  if (quantityPerScan === null) {
     return { ok: false, error: "Amount must be a positive number." };
   }
 

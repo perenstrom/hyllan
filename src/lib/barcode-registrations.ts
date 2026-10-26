@@ -1,9 +1,14 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "@/db/schema";
-import { barcodeRegistrations, pantryItems } from "@/db/schema";
+import {
+  barcodeProductNames,
+  barcodeRegistrations,
+  pantryItems,
+} from "@/db/schema";
 import type { BarcodeSymbology } from "./barcode";
+import type { ProductNameSuggestion } from "./product-names";
 
 // Same query-result-generic shape as pantry-items.ts, so these run against
 // both the app's postgres-js client and PGlite in integration tests.
@@ -144,4 +149,93 @@ export async function registerBarcode<TQueryResult extends PgQueryResultHKT>(
       .where(eq(barcodeRegistrations.id, existing.id));
     return { status: "registered" };
   });
+}
+
+export type ItemBarcodeRegistration = {
+  id: string;
+  barcodeValue: string;
+  symbology: BarcodeSymbology;
+  quantityPerScan: string;
+  // From the shared name cache (ADR 0008) — null when it has no row for
+  // the value or only a cached miss.
+  productName: ProductNameSuggestion | null;
+};
+
+// What the edit-item page's Barcodes section lists, oldest first so a
+// newly scanned registration lands at the bottom.
+export async function listItemBarcodeRegistrations<
+  TQueryResult extends PgQueryResultHKT,
+>(
+  db: Database<TQueryResult>,
+  householdId: string,
+  pantryItemId: string,
+): Promise<ItemBarcodeRegistration[]> {
+  const rows = await db
+    .select({
+      id: barcodeRegistrations.id,
+      barcodeValue: barcodeRegistrations.barcodeValue,
+      symbology: barcodeRegistrations.symbology,
+      quantityPerScan: barcodeRegistrations.quantityPerScan,
+      productName: barcodeProductNames.productName,
+      source: barcodeProductNames.source,
+    })
+    .from(barcodeRegistrations)
+    .leftJoin(
+      barcodeProductNames,
+      eq(barcodeRegistrations.barcodeValue, barcodeProductNames.barcodeValue),
+    )
+    .where(
+      and(
+        eq(barcodeRegistrations.householdId, householdId),
+        eq(barcodeRegistrations.pantryItemId, pantryItemId),
+      ),
+    )
+    .orderBy(asc(barcodeRegistrations.createdAt), asc(barcodeRegistrations.id));
+
+  return rows.map(({ productName, source, ...registration }) => ({
+    ...registration,
+    productName: productName && source ? { name: productName, source } : null,
+  }));
+}
+
+function scopedToRegistration(householdId: string, registrationId: string) {
+  return and(
+    eq(barcodeRegistrations.householdId, householdId),
+    eq(barcodeRegistrations.id, registrationId),
+  );
+}
+
+// Drops one registration without touching its item — scanning the barcode
+// again simply starts inline registration over. False when no such
+// registration exists in the household.
+export async function removeBarcodeRegistration<
+  TQueryResult extends PgQueryResultHKT,
+>(
+  db: Database<TQueryResult>,
+  householdId: string,
+  registrationId: string,
+): Promise<boolean> {
+  const deleted = await db
+    .delete(barcodeRegistrations)
+    .where(scopedToRegistration(householdId, registrationId))
+    .returning({ id: barcodeRegistrations.id });
+  return deleted.length > 0;
+}
+
+// quantityPerScan: positive, already parsed (parseQuantity), in the item's
+// own unit. False when no such registration exists in the household.
+export async function updateBarcodeQuantityPerScan<
+  TQueryResult extends PgQueryResultHKT,
+>(
+  db: Database<TQueryResult>,
+  householdId: string,
+  registrationId: string,
+  quantityPerScan: string,
+): Promise<boolean> {
+  const updated = await db
+    .update(barcodeRegistrations)
+    .set({ quantityPerScan })
+    .where(scopedToRegistration(householdId, registrationId))
+    .returning({ id: barcodeRegistrations.id });
+  return updated.length > 0;
 }

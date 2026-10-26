@@ -35,10 +35,7 @@ export function RowActionsMenu({ itemId, itemName }: Props) {
             aria-label={`Actions for ${itemName}`}
             className={ACTION_BUTTON_CLASS}
           >
-            <MoreHorizontal
-              className={ACTION_ICON_CLASS}
-              aria-hidden="true"
-            />
+            <MoreHorizontal className={ACTION_ICON_CLASS} aria-hidden="true" />
           </button>
         </DropdownMenu.Trigger>
 

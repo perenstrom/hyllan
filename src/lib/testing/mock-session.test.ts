@@ -5,7 +5,10 @@ import { describe, expect, it } from "vitest";
 import { buildMockSessionCookie, mintAccessToken } from "./mock-session";
 
 const SECRET = "test-only-secret";
-const USER = { id: "11111111-1111-1111-1111-111111111111", email: "a@example.com" };
+const USER = {
+  id: "11111111-1111-1111-1111-111111111111",
+  email: "a@example.com",
+};
 
 function base64urlDecode(value: string): string {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/");

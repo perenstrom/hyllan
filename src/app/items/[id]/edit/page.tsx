@@ -4,6 +4,7 @@ import { EditItemForm } from "./edit-item-form";
 import { AppHeader } from "@/app/app-header";
 import { db } from "@/db/client";
 import { requireSessionClaims } from "@/lib/auth";
+import { listItemBarcodeRegistrations } from "@/lib/barcode-registrations";
 import { getHouseholdForUser } from "@/lib/household";
 import { activeBuckets } from "@/lib/location";
 import { listLocations } from "@/lib/locations";
@@ -37,9 +38,10 @@ export default async function EditItemPage({ params }: Props) {
   const { claims } = await requireSessionClaims();
 
   const household = await getHouseholdForUser(db, claims.sub);
-  const [item, locations] = await Promise.all([
+  const [item, locations, barcodeRegistrations] = await Promise.all([
     getPantryItem(db, household.id, id),
     listLocations(db, household.id),
+    listItemBarcodeRegistrations(db, household.id, id),
   ]);
 
   if (!item) {
@@ -52,6 +54,7 @@ export default async function EditItemPage({ params }: Props) {
       <EditItemForm
         item={{ ...item, ...defaultEditBucket(item) }}
         locations={locations}
+        barcodeRegistrations={barcodeRegistrations}
       />
     </div>
   );

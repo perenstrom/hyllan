@@ -14,6 +14,11 @@ vi.mock("@/app/locations/actions", () => ({
   createLocation: vi.fn(),
 }));
 
+vi.mock("./registration-actions", () => ({
+  removeItemRegistration: vi.fn(),
+  updateItemRegistrationQuantityPerScan: vi.fn(),
+}));
+
 const { EditItemForm } = await import("./edit-item-form");
 
 const item = {
@@ -31,7 +36,9 @@ describe("EditItemForm", () => {
   });
 
   it("prefills name, quantity, and unit from the item", () => {
-    render(<EditItemForm item={item} locations={[]} />);
+    render(
+      <EditItemForm item={item} locations={[]} barcodeRegistrations={[]} />,
+    );
 
     expect(screen.getByLabelText("Name")).toHaveValue("Rice");
     expect(screen.getByLabelText("Quantity")).toHaveValue(2);
@@ -39,7 +46,9 @@ describe("EditItemForm", () => {
   });
 
   it("leaves the minimum quantity field blank when the item has none set", () => {
-    render(<EditItemForm item={item} locations={[]} />);
+    render(
+      <EditItemForm item={item} locations={[]} barcodeRegistrations={[]} />,
+    );
 
     expect(
       screen.getByLabelText<HTMLInputElement>("Minimum quantity (optional)")
@@ -49,14 +58,20 @@ describe("EditItemForm", () => {
 
   it("prefills the minimum quantity field when the item has one set", () => {
     render(
-      <EditItemForm item={{ ...item, minimumQuantity: "1" }} locations={[]} />,
+      <EditItemForm
+        item={{ ...item, minimumQuantity: "1" }}
+        locations={[]}
+        barcodeRegistrations={[]}
+      />,
     );
 
     expect(screen.getByLabelText("Minimum quantity (optional)")).toHaveValue(1);
   });
 
   it("submits through editItem bound to the item's id", () => {
-    render(<EditItemForm item={item} locations={[]} />);
+    render(
+      <EditItemForm item={item} locations={[]} barcodeRegistrations={[]} />,
+    );
 
     fireEvent.submit(
       screen.getByRole("button", { name: "Save changes" }).closest("form")!,
@@ -74,7 +89,9 @@ describe("EditItemForm", () => {
       error: "You already have an item with that name.",
     });
 
-    render(<EditItemForm item={item} locations={[]} />);
+    render(
+      <EditItemForm item={item} locations={[]} barcodeRegistrations={[]} />,
+    );
     fireEvent.submit(
       screen.getByRole("button", { name: "Save changes" }).closest("form")!,
     );
@@ -85,7 +102,9 @@ describe("EditItemForm", () => {
   });
 
   it("prefills the location field from the item, defaulting to Unassigned", () => {
-    render(<EditItemForm item={item} locations={[]} />);
+    render(
+      <EditItemForm item={item} locations={[]} barcodeRegistrations={[]} />,
+    );
 
     expect(screen.getByLabelText("Location (optional)")).toHaveValue(
       "Unassigned",
@@ -101,6 +120,7 @@ describe("EditItemForm", () => {
       <EditItemForm
         item={{ ...item, locationId: pantry.id }}
         locations={[pantry]}
+        barcodeRegistrations={[]}
       />,
     );
 
@@ -116,6 +136,7 @@ describe("EditItemForm", () => {
       <EditItemForm
         item={{ ...item, locationId: pantry.id }}
         locations={[pantry]}
+        barcodeRegistrations={[]}
       />,
     );
 
@@ -126,11 +147,24 @@ describe("EditItemForm", () => {
   });
 
   it("links back to the pantry without saving anything", () => {
-    render(<EditItemForm item={item} locations={[]} />);
+    render(
+      <EditItemForm item={item} locations={[]} barcodeRegistrations={[]} />,
+    );
 
     expect(screen.getByRole("link", { name: "Cancel" })).toHaveAttribute(
       "href",
       "/",
     );
+  });
+
+  it("shows the item's barcodes below the form, outside it, so Save never submits them", () => {
+    render(
+      <EditItemForm item={item} locations={[]} barcodeRegistrations={[]} />,
+    );
+
+    const section = screen
+      .getByRole("heading", { name: "Barcodes" })
+      .closest("section")!;
+    expect(section.closest("form")).toBeNull();
   });
 });

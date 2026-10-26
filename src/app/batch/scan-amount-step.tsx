@@ -5,9 +5,10 @@ import { useId, useState } from "react";
 import type { BatchDirection } from "./batch-entry";
 import type { BatchCommitTarget } from "./batch-entry-row";
 import {
+  amountSuffixLabel,
   formatQuantity,
   PANTRY_ITEM_UNITS,
-  parseQuantity,
+  parseQuantityPerScan,
   type PantryItemUnit,
 } from "@/lib/pantry-item";
 
@@ -18,8 +19,6 @@ export type ChosenItem = {
   name: string;
   unit: PantryItemUnit | null;
 };
-
-const UNIT_LABEL: Partial<Record<PantryItemUnit, string>> = { count: "items" };
 
 type Props = {
   chosen: ChosenItem;
@@ -43,8 +42,8 @@ export function ScanAmountStep({
   const amountId = useId();
   const [amount, setAmount] = useState("1");
   const [unit, setUnit] = useState<PantryItemUnit>(chosen.unit ?? "count");
-  const parsed = parseQuantity(amount.trim());
-  const valid = parsed !== null && Number(parsed) > 0;
+  const parsed = parseQuantityPerScan(amount);
+  const valid = parsed !== null;
   const verb = direction === "add" ? "Add" : "Remove";
 
   function confirm() {
@@ -116,7 +115,7 @@ export function ScanAmountStep({
             </select>
           ) : (
             <span className="shrink-0 text-zinc-600 dark:text-zinc-400">
-              {UNIT_LABEL[unit] ?? unit}
+              {amountSuffixLabel(unit)}
             </span>
           )}
         </div>
