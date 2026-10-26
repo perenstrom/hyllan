@@ -12,7 +12,7 @@ Something a household tracks having some quantity of. Identified within its hous
 _Avoid_: Product, ingredient, stock entry
 
 **Barcode registration**:
-A household-scoped mapping from a scanned barcode's value to one of its pantry items, created when a household links a barcode to an item. A pantry item can carry several barcode registrations (e.g. one per pack size or variant); a barcode value resolves to at most one pantry item within a household at a time. Each registration also says how much one scan of that barcode adds or removes, in the pantry item's own unit (e.g. 500 for a 500 g bag of an item tracked in g; defaults to 1). Deleting the pantry item a barcode is registered to deletes the registration with it (see ADR 0007).
+A household-scoped mapping from a scanned barcode's value to one of its pantry items, created when a household links a barcode to an item. A pantry item can carry several barcode registrations (e.g. one per pack size or variant); a barcode value resolves to at most one pantry item within a household at a time. Each registration also says how much one scan of that barcode adds or removes, in the pantry item's own unit (e.g. 500 for a 500 g bag of an item tracked in g; defaults to 1). A household can remove a single registration, or change how much one scan of it adds or removes, from its pantry item without the package in hand. Deleting the pantry item a barcode is registered to deletes the registration with it (see ADR 0007).
 _Avoid_: barcode, product code, UPC, EAN, GTIN
 
 **Quantity**:
