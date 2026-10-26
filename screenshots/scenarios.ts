@@ -390,8 +390,13 @@ export const SCENARIOS: Scenario[] = [
     route: "/batch/add",
     interactions: async (page) => {
       await fakeCamera(page, UNREGISTERED_EAN);
+      // Tapping the chip shows both the suggestion's effect and the
+      // "Add as a new item" button that finishes the registration.
       await page
         .getByRole("button", { name: "Use suggested name Fusilli" })
+        .click();
+      await page
+        .getByRole("button", { name: "Add “Fusilli” as a new item" })
         .waitFor({ state: "visible" });
     },
   },

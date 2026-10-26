@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 
 import {
@@ -75,7 +75,7 @@ export function BarcodeRegisterPanel({
     };
   }, [barcode.value, mode]);
 
-  const { trimmed, matches, canCreate } = matchBatchItems(
+  const { trimmed, matches, exactMatch, canCreate } = matchBatchItems(
     items,
     query,
     allowCreate,
@@ -105,6 +105,20 @@ export function BarcodeRegisterPanel({
         id={fieldId}
         value={query}
         onChange={(event) => setQuery(event.target.value)}
+        onKeyDown={(event) => {
+          // Same rule as the entry row's Enter: an exact name match is that
+          // item, anything else is a new one (add mode only).
+          if (event.key !== "Enter" || pending) {
+            return;
+          }
+          event.preventDefault();
+          if (exactMatch) {
+            onPick({ itemId: exactMatch.id });
+          } else if (canCreate) {
+            onPick({ newItemName: trimmed });
+          }
+        }}
+        enterKeyHint="done"
         placeholder={
           allowCreate ? "Search or add an item" : "Search for an item"
         }
@@ -154,7 +168,7 @@ export function BarcodeRegisterPanel({
         </div>
       )}
 
-      {trimmed.length > 0 && (
+      {trimmed.length > 0 && (matches.length > 0 || !canCreate) && (
         <ul className="mt-2 max-h-48 overflow-y-auto rounded border border-amber-200 bg-white py-1 dark:border-amber-800 dark:bg-zinc-900">
           {matches.map((item) => (
             <li key={item.id}>
@@ -168,24 +182,28 @@ export function BarcodeRegisterPanel({
               </button>
             </li>
           ))}
-          {canCreate && (
-            <li>
-              <button
-                type="button"
-                onClick={() => onPick({ newItemName: trimmed })}
-                disabled={pending}
-                className={ROW_BUTTON_CLASS}
-              >
-                Add &ldquo;{trimmed}&rdquo; as a new item
-              </button>
-            </li>
-          )}
-          {matches.length === 0 && !canCreate && (
+          {matches.length === 0 && (
             <li className="px-3 py-1.5 text-zinc-500 dark:text-zinc-500">
               No matches
             </li>
           )}
         </ul>
+      )}
+
+      {/* The way to finish a first scan, so it's styled as the page's
+          primary action rather than one more row under the field. */}
+      {canCreate && (
+        <button
+          type="button"
+          onClick={() => onPick({ newItemName: trimmed })}
+          disabled={pending}
+          className="mt-2 flex h-11 w-full items-center justify-center gap-1.5 rounded bg-black px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60 sm:h-10 dark:bg-zinc-50 dark:text-black"
+        >
+          <Plus className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="truncate">
+            Add &ldquo;{trimmed}&rdquo; as a new item
+          </span>
+        </button>
       )}
 
       {error && (

@@ -261,6 +261,64 @@ describe("BatchEntry scanning", () => {
     await within(await sessionLog()).findByText("Fusilli");
   });
 
+  it("offers creating a new item as a standalone button, not one more row in the matches list", async () => {
+    scanBatchBarcodeMock.mockResolvedValue({
+      ok: true,
+      kind: "unregistered",
+      barcode: BARCODE,
+    });
+    renderBatch("add");
+    openScanner();
+    await decode();
+
+    const panel = await registerPanel();
+    fireEvent.change(within(panel).getByLabelText("Pantry item"), {
+      target: { value: "Pa" },
+    });
+
+    const create = within(panel).getByRole("button", {
+      name: "Add “Pa” as a new item",
+    });
+    expect(create.closest("li")).toBeNull();
+    expect(within(panel).getByRole("listitem")).toHaveTextContent("Pasta");
+  });
+
+  it("commits on Enter in the panel: an exact name match picks that item, anything else creates one", async () => {
+    scanBatchBarcodeMock.mockResolvedValue({
+      ok: true,
+      kind: "unregistered",
+      barcode: BARCODE,
+    });
+    registerScannedBarcodeMock.mockResolvedValue({
+      ok: true,
+      entry: entry(PASTA, "1", "4"),
+    });
+    renderBatch("add");
+    openScanner();
+    await decode();
+
+    const field = within(await registerPanel()).getByLabelText("Pantry item");
+    fireEvent.change(field, { target: { value: "pasta" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(registerScannedBarcodeMock).toHaveBeenLastCalledWith(
+      BARCODE,
+      { itemId: "pasta" },
+      "add",
+      false,
+    );
+
+    await decode("4006381333931", "ean_13");
+    const next = within(await registerPanel()).getByLabelText("Pantry item");
+    fireEvent.change(next, { target: { value: "Fusilli" } });
+    fireEvent.keyDown(next, { key: "Enter" });
+    expect(registerScannedBarcodeMock).toHaveBeenLastCalledWith(
+      BARCODE,
+      { newItemName: "Fusilli" },
+      "add",
+      false,
+    );
+  });
+
   it("suggests a looked-up name with Open Food Facts' credit, copying it in only when tapped (ADR 0008)", async () => {
     scanBatchBarcodeMock.mockResolvedValue({
       ok: true,
