@@ -128,7 +128,7 @@ function confirmAmount(panel: HTMLElement, label = "Add 1") {
 }
 
 function registerPanel() {
-  return screen.findByRole("region", { name: "New barcode" });
+  return screen.findByRole("dialog", { name: "New barcode" });
 }
 
 beforeEach(() => {
@@ -255,7 +255,7 @@ describe("BatchEntry scanning", () => {
     );
     await within(await sessionLog()).findByText("Beans");
     expect(
-      screen.queryByRole("region", { name: "New barcode" }),
+      screen.queryByRole("dialog", { name: "New barcode" }),
     ).not.toBeInTheDocument();
     expect(scanner?.paused).toBe(false);
   });
@@ -549,9 +549,29 @@ describe("BatchEntry scanning", () => {
     );
 
     expect(
-      screen.queryByRole("region", { name: "New barcode" }),
+      screen.queryByRole("dialog", { name: "New barcode" }),
     ).not.toBeInTheDocument();
     expect(registerScannedBarcodeMock).not.toHaveBeenCalled();
+  });
+
+  it("cancels when the card is dismissed natively (Escape), registering nothing", async () => {
+    scanBatchBarcodeMock.mockResolvedValue({
+      ok: true,
+      kind: "unregistered",
+      barcode: BARCODE,
+    });
+    renderBatch("add");
+    openScanner();
+    await decode();
+
+    const card = (await registerPanel()) as HTMLDialogElement;
+    act(() => card.close());
+
+    expect(
+      screen.queryByRole("dialog", { name: "New barcode" }),
+    ).not.toBeInTheDocument();
+    expect(registerScannedBarcodeMock).not.toHaveBeenCalled();
+    expect(scanner?.paused).toBe(false);
   });
 
   it("leaves an unregistered barcode inert in remove mode, saying why", async () => {
@@ -569,7 +589,7 @@ describe("BatchEntry scanning", () => {
       `${EAN} isn't registered to an item yet`,
     );
     expect(
-      screen.queryByRole("region", { name: "New barcode" }),
+      screen.queryByRole("dialog", { name: "New barcode" }),
     ).not.toBeInTheDocument();
     expect(suggestScannedProductNameMock).not.toHaveBeenCalled();
   });
@@ -596,7 +616,7 @@ describe("BatchEntry scanning", () => {
     );
     expect(adjustBatchItemMock).toHaveBeenCalledWith("pasta", "-1");
 
-    const panel = await screen.findByRole("region", {
+    const panel = await screen.findByRole("dialog", {
       name: "Change barcode item",
     });
     expect(suggestScannedProductNameMock).not.toHaveBeenCalled();
@@ -606,7 +626,9 @@ describe("BatchEntry scanning", () => {
     fireEvent.click(within(panel).getByRole("button", { name: /Beans/ }));
     confirmAmount(panel);
 
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByRole("dialog", {
+      name: /Move this barcode/,
+    });
     expect(dialog).toHaveTextContent("Move this barcode to Beans?");
     expect(dialog).toHaveTextContent("registered to Pasta");
     fireEvent.click(
@@ -620,7 +642,9 @@ describe("BatchEntry scanning", () => {
       true,
     );
     await within(await sessionLog()).findByText("Beans");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: /Move this barcode/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the panel open when a reassignment is declined", async () => {
@@ -644,12 +668,16 @@ describe("BatchEntry scanning", () => {
     fireEvent.click(within(panel).getByRole("button", { name: /Beans/ }));
     confirmAmount(panel);
     fireEvent.click(
-      within(await screen.findByRole("dialog")).getByRole("button", {
+      within(
+        await screen.findByRole("dialog", { name: /Move this barcode/ }),
+      ).getByRole("button", {
         name: "Cancel",
       }),
     );
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: /Move this barcode/ }),
+    ).not.toBeInTheDocument();
     expect(await registerPanel()).toBeInTheDocument();
     expect(registerScannedBarcodeMock).toHaveBeenCalledTimes(1);
   });
@@ -675,7 +703,7 @@ describe("BatchEntry scanning", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Wrong item? (Pasta)" }),
     );
-    const panel = await screen.findByRole("region", {
+    const panel = await screen.findByRole("dialog", {
       name: "Change barcode item",
     });
     expect(panel).toHaveTextContent("Undid the scan on Pasta.");
@@ -689,7 +717,7 @@ describe("BatchEntry scanning", () => {
       "Nothing removed — Beans has no unassigned stock.",
     );
     expect(
-      screen.queryByRole("region", { name: "Change barcode item" }),
+      screen.queryByRole("dialog", { name: "Change barcode item" }),
     ).not.toBeInTheDocument();
   });
 

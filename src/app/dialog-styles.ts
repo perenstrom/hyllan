@@ -13,3 +13,11 @@ export const DIALOG_ACTIONS_CLASS =
   "mt-5 grid grid-cols-2 gap-2 sm:mt-4 sm:flex sm:justify-end";
 
 export const DIALOG_BUTTON_SIZE_CLASS = "h-11 w-full sm:h-auto sm:w-auto";
+
+// For a dialog the household types into: a card anchored near the top on a
+// phone rather than DIALOG_CLASS's bottom sheet — the on-screen keyboard
+// rises from the bottom edge and would cover a bottom sheet's fields
+// (iOS Safari doesn't move fixed content above it). Centered from sm up,
+// same as DIALOG_CLASS; callers append their own sm: max width.
+export const KEYBOARD_DIALOG_CLASS =
+  "mx-4 mt-[max(1rem,env(safe-area-inset-top))] mb-auto w-auto max-w-none rounded-lg border border-zinc-200 bg-white p-4 backdrop:bg-black/40 sm:m-auto sm:w-full sm:p-6 dark:border-zinc-800 dark:bg-zinc-900";

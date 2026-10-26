@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, X } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import type { BatchDirection } from "./batch-entry";
 import {
@@ -13,6 +13,7 @@ import {
   suggestScannedProductName,
   type BarcodeRegistrationChoice,
 } from "./scan-actions";
+import { KEYBOARD_DIALOG_CLASS } from "@/app/dialog-styles";
 import type { ScannedBarcode } from "@/lib/barcode";
 import {
   formatQuantity,
@@ -54,7 +55,9 @@ type ChosenItem = {
 // settles on nothing (a miss is silent, ADR 0008) or the chip is dismissed.
 type SuggestionState = "loading" | ProductNameSuggestion | null;
 
-// The inline pick-or-create panel (prototyped in PER-278): choose which
+// The pick-or-create card (prototyped in PER-278 as an inline panel; a
+// modal card since phone QA found the keyboard covering it below the
+// camera): choose which
 // pantry item a barcode belongs to, or name a new one, then say how much one
 // scan of it is (ADR 0007's amendment) — a 500 g bag's barcode should add
 // 500 g, not 1. For a first scan it also asks for a name suggestion in the
@@ -73,6 +76,13 @@ export function BarcodeRegisterPanel({
 }: Props) {
   const headingId = useId();
   const fieldId = useId();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  // Mounted only while there's a barcode to settle, so opening on mount
+  // is the whole lifecycle — same as ReassignBarcodeDialog.
+  useEffect(() => {
+    dialogRef.current?.showModal();
+  }, []);
   const allowCreate = direction === "add";
   const [query, setQuery] = useState("");
   const [chosen, setChosen] = useState<ChosenItem | null>(null);
@@ -116,17 +126,19 @@ export function BarcodeRegisterPanel({
   }
 
   return (
-    <section
+    <dialog
+      ref={dialogRef}
       aria-labelledby={headingId}
-      className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950"
+      onClose={onCancel}
+      className={`${KEYBOARD_DIALOG_CLASS} text-sm sm:max-w-md`}
     >
       <h2
         id={headingId}
-        className="font-medium text-amber-900 dark:text-amber-100"
+        className="text-lg font-semibold text-black dark:text-zinc-50"
       >
         {mode === "register" ? "New barcode" : "Change barcode item"}
       </h2>
-      <p className="mt-0.5 text-amber-800 dark:text-amber-300">
+      <p className="mt-1 text-zinc-600 dark:text-zinc-400">
         {mode === "register"
           ? `${barcode.value} isn't registered yet. Pick the pantry item it belongs to${allowCreate ? ", or add it as new" : ""}.`
           : `Undid the scan on ${wrongItemName}. Pick the pantry item ${barcode.value} should count as instead.`}
@@ -175,17 +187,17 @@ export function BarcodeRegisterPanel({
             }
             autoComplete="off"
             autoFocus
-            className="mt-2 h-11 w-full rounded border border-amber-300 bg-white px-3 sm:h-10 dark:border-amber-700 dark:bg-zinc-900"
+            className="mt-3 h-11 w-full rounded border border-zinc-300 bg-white px-3 sm:h-10 dark:border-zinc-700 dark:bg-zinc-900"
           />
 
           {suggestion === "loading" && (
-            <p className="mt-1.5 text-xs text-amber-800 dark:text-amber-300">
+            <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
               Looking up product…
             </p>
           )}
           {suggestion && suggestion !== "loading" && (
             <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="inline-flex items-center rounded-full border border-amber-300 bg-white dark:border-amber-700 dark:bg-zinc-900">
+              <span className="inline-flex items-center rounded-full border border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-800">
                 <button
                   type="button"
                   onClick={() => setQuery(suggestion.name)}
@@ -204,7 +216,7 @@ export function BarcodeRegisterPanel({
                 </button>
               </span>
               {suggestion.source === "open_food_facts" && (
-                <span className="text-xs text-amber-800 dark:text-amber-300">
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
                   via{" "}
                   <a
                     href="https://world.openfoodfacts.org"
@@ -220,7 +232,7 @@ export function BarcodeRegisterPanel({
           )}
 
           {trimmed.length > 0 && (matches.length > 0 || !canCreate) && (
-            <ul className="mt-2 max-h-48 overflow-y-auto rounded border border-amber-200 bg-white py-1 dark:border-amber-800 dark:bg-zinc-900">
+            <ul className="mt-2 max-h-48 overflow-y-auto rounded border border-zinc-200 bg-white py-1 dark:border-zinc-700 dark:bg-zinc-900">
               {matches.map((item) => (
                 <li key={item.id}>
                   <button
@@ -268,11 +280,11 @@ export function BarcodeRegisterPanel({
       <button
         type="button"
         onClick={onCancel}
-        className="mt-2 -mb-1 py-2 text-amber-800 underline sm:py-1 sm:text-xs dark:text-amber-300"
+        className="mt-2 -mb-1 py-2 text-zinc-600 underline sm:py-1 sm:text-xs dark:text-zinc-400"
       >
         Cancel
       </button>
-    </section>
+    </dialog>
   );
 }
 
@@ -309,7 +321,7 @@ function ScanAmountStep({
 
   return (
     <>
-      <div className="mt-2 rounded border border-amber-200 bg-white p-3 dark:border-amber-800 dark:bg-zinc-900">
+      <div className="mt-3 rounded border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
         <div className="flex items-center justify-between gap-2">
           <p className="font-medium text-zinc-900 dark:text-zinc-100">
             {chosen.name}

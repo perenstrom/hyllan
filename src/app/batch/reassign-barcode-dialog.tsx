@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 
 import {
   DIALOG_ACTIONS_CLASS,
@@ -29,6 +29,7 @@ export function ReassignBarcodeDialog({
   onCancel,
 }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const headingId = useId();
 
   useEffect(() => {
     dialogRef.current?.showModal();
@@ -37,10 +38,14 @@ export function ReassignBarcodeDialog({
   return (
     <dialog
       ref={dialogRef}
+      aria-labelledby={headingId}
       onClose={onCancel}
       className={`${DIALOG_CLASS} sm:max-w-md`}
     >
-      <h2 className="text-lg font-semibold text-black dark:text-zinc-50">
+      <h2
+        id={headingId}
+        className="text-lg font-semibold text-black dark:text-zinc-50"
+      >
         Move this barcode to {toItemName}?
       </h2>
       <p className="mt-2 max-w-sm text-sm text-zinc-600 dark:text-zinc-400">
