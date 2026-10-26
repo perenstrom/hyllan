@@ -34,6 +34,23 @@ The app talks to GoTrue via `@supabase/ssr` (`src/lib/supabase/`), with `NEXT_PU
 
 **Forgot/reset password** (`/forgot-password`, `/reset-password`) goes through GoTrue's `/recover` endpoint, which fails outright without SMTP configured — staging and production have real SMTP (PER-263), but local dev doesn't. Locally, GoTrue's Send Email Hook stands in for it instead: `compose.yaml`'s `auth` service posts the email payload to `src/app/api/auth/send-email-hook/route.ts` (verified via `src/lib/webhook-signature.ts`) rather than sending mail, and that route just logs the link a real email would have contained — copy it from `npm run dev`'s own terminal output to continue the flow by hand.
 
+### Testing on a phone
+
+The camera (barcode scanning) only works in a secure context, so plain `http://<LAN IP>:3000` won't do on a phone. Instead, on a Mac on the same Wi-Fi as the phone, run:
+
+```bash
+npm run dev:lan
+```
+
+`scripts/dev-lan.sh` serves the app over HTTPS on all interfaces at `https://<mac-name>.local:3000` (the Mac's Bonjour name, printed on start). On first run it creates a local CA and a certificate for that name, `localhost` and the LAN IP in `.certs/` (gitignored, never commit it — it holds the CA's private key), and reissues the certificate if the name or IP changes. It also points the browser bundle's auth origin (`NEXT_PUBLIC_SUPABASE_URL`) at that LAN origin and sends server-side auth calls straight to GoTrue. Set `PORT` to use a port other than 3000. macOS only.
+
+The phone has to trust the CA once (`.certs/hyllan-dev-ca.crt`):
+
+- **iPhone:** AirDrop the `.crt` to the phone, install the profile from Settings → Profile Downloaded, then enable full trust under Settings → General → About → Certificate Trust Settings.
+- **Android:** copy the `.crt` to the phone, then Settings → Security → Encryption & credentials → Install a certificate → CA certificate.
+
+Signup/password-reset emails won't arrive in this mode: GoTrue's send-email hook (`compose.yaml`) calls the app over plain http, which the HTTPS dev server doesn't answer. Sign in with an existing account (e.g. `npm run db:seed`'s) instead.
+
 ## Database
 
 - `npm run db:generate` — diff `src/db/schema/app.ts` against the existing migrations and write a new one under `drizzle/`
@@ -140,6 +157,7 @@ Don't attribute PRs to Claude and don't link the originating session. This means
 ## Scripts
 
 - `npm run dev` — start the dev server
+- `npm run dev:lan` — start the dev server over HTTPS on the LAN for testing on a phone (see "Testing on a phone" above)
 - `npm run build` — production build
 - `npm run start` — run the production build
 - `npm run lint` — ESLint
