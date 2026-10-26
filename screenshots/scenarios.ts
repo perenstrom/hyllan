@@ -359,7 +359,7 @@ export const SCENARIOS: Scenario[] = [
       await page.getByRole("button", { name: "Stock take" }).click();
       await page.getByRole("button", { name: "Look up one item" }).click();
       await page.getByLabel("Item").click();
-      await page.getByRole("button", { name: "Rice" }).click();
+      await page.getByRole("option", { name: "Rice" }).click();
       await page.getByLabel("Quantity at Pantry").waitFor({ state: "visible" });
     },
   },
@@ -390,7 +390,7 @@ export const SCENARIOS: Scenario[] = [
     interactions: async (page) => {
       await page.getByLabel("Item").fill("Lentils");
       await page
-        .getByRole("button", { name: "Add “Lentils” as a new item" })
+        .getByRole("option", { name: "Add “Lentils” as a new item" })
         .waitFor({ state: "visible" });
     },
   },
