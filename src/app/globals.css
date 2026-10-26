@@ -3,6 +3,11 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Native control chrome (select arrows and their option popups, number
+     spinners, checkboxes, scrollbars) is drawn by the browser, not by our
+     dark: classes — without this it stays light-themed on a dark page,
+     e.g. black select chevrons on zinc-900. */
+  color-scheme: light dark;
 }
 
 @theme inline {
