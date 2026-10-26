@@ -33,6 +33,19 @@ export function parseQuantity(raw: string): string | null {
   return QUANTITY_PATTERN.test(trimmed) ? trimmed : null;
 }
 
+// How much one scan of a Barcode registration is (ADR 0007's amendment):
+// a quantity, and positive to match quantity_per_scan's check constraint.
+export function parseQuantityPerScan(raw: string): string | null {
+  const parsed = parseQuantity(raw);
+  return parsed !== null && Number(parsed) > 0 ? parsed : null;
+}
+
+// A unit as a suffix after a bare amount field — "count" reads as "items"
+// there, where formatQuantity would show nothing at all.
+export function amountSuffixLabel(unit: PantryItemUnit): string {
+  return unit === "count" ? "items" : unit;
+}
+
 // One scannable number per row (ADR 0004) — the unit-less "count" default
 // postfixes nothing, every other unit postfixes its label.
 export function formatQuantity(quantity: string, unit: PantryItemUnit): string {

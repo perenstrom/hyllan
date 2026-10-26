@@ -15,6 +15,7 @@ import {
   parsePantryItemInput,
   parseStoredStatusFilter,
   parseQuantity,
+  parseQuantityPerScan,
   sortPantryItems,
 } from "./pantry-item";
 
@@ -560,5 +561,15 @@ describe("filterPantryItemsByStatus", () => {
     };
 
     expect(filterPantryItemsByStatus(items, filter)).toEqual([]);
+  });
+});
+
+describe("parseQuantityPerScan", () => {
+  it("accepts a positive decimal, trimmed", () => {
+    expect(parseQuantityPerScan(" 0.5 ")).toBe("0.5");
+  });
+
+  it.each(["0", "0.0", "-1", "abc", ""])("rejects %j", (raw) => {
+    expect(parseQuantityPerScan(raw)).toBeNull();
   });
 });

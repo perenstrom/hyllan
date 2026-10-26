@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   canonicalBarcodeValue,
+  displayBarcodeValue,
   isBarcodeSymbology,
   isCanonicalBarcodeValue,
 } from "./barcode";
@@ -70,5 +71,18 @@ describe("isCanonicalBarcodeValue", () => {
 
   it("rejects a bad check digit", () => {
     expect(isCanonicalBarcodeValue("7310865004704")).toBe(false);
+  });
+});
+
+describe("displayBarcodeValue", () => {
+  it("shows a UPC-A registration as the 12 digits printed on the package", () => {
+    expect(displayBarcodeValue("0036000291452", "upc_a")).toBe("036000291452");
+  });
+
+  it.each([
+    ["ean_13", "7310865004703"],
+    ["ean_8", "96385074"],
+  ] as const)("shows %s as stored", (symbology, value) => {
+    expect(displayBarcodeValue(value, symbology)).toBe(value);
   });
 });

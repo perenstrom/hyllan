@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { suggestScannedProductName } from "./scan-actions";
+import { OpenFoodFactsCredit } from "@/app/open-food-facts-credit";
 import type { ProductNameSuggestion } from "@/lib/product-names";
 
 // "loading" while the background lookup is in flight; null once it settles
@@ -88,15 +89,7 @@ export function ProductNameSuggestionChip({
       </span>
       {suggestion.source === "open_food_facts" && (
         <span className="text-xs text-zinc-500 dark:text-zinc-400">
-          via{" "}
-          <a
-            href="https://world.openfoodfacts.org"
-            target="_blank"
-            rel="noreferrer"
-            className="underline"
-          >
-            Open Food Facts
-          </a>
+          <OpenFoodFactsCredit />
         </span>
       )}
     </div>

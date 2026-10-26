@@ -82,6 +82,20 @@ const DELETABLE_ITEM: AddPantryItemInput = {
 const REGISTERED_EAN = "7310865004703";
 const UNREGISTERED_EAN = "4006381333931";
 
+// For the edit page's Barcodes section — a named EAN-13 and an EAN-8 the
+// lookup cache knows nothing about.
+const NAMED_RICE_EAN = "7310130005008";
+const UNNAMED_RICE_EAN_8 = "96385074";
+const EDIT_ITEM_BARCODES = {
+  seed: [EDITABLE_ITEM],
+  barcodeRegistrations: [
+    { itemName: "Rice", value: NAMED_RICE_EAN, quantityPerScan: "1" },
+    { itemName: "Rice", value: UNNAMED_RICE_EAN_8, quantityPerScan: "0.5" },
+  ],
+  productNames: [{ value: NAMED_RICE_EAN, name: "Jasmine rice 1 kg" }],
+  route: (ctx: SeededContext) => `/items/${ctx.itemIds[0]}/edit`,
+};
+
 // Headless Chromium has no camera, so scan scenarios swap getUserMedia for
 // a canvas stream that draws a real EAN-13 — the actual decoder then reads
 // it, exactly as it would a pack held up to a phone. `null` makes the
@@ -195,6 +209,22 @@ export const SCENARIOS: Scenario[] = [
     name: "edit-item",
     seed: [EDITABLE_ITEM],
     route: (ctx) => `/items/${ctx.itemIds[0]}/edit`,
+  },
+  {
+    name: "edit-item-barcodes",
+    ...EDIT_ITEM_BARCODES,
+  },
+  {
+    name: "remove-barcode-dialog",
+    ...EDIT_ITEM_BARCODES,
+    interactions: async (page) => {
+      await page
+        .getByRole("button", { name: `Remove barcode ${UNNAMED_RICE_EAN_8}` })
+        .click();
+      await page
+        .getByRole("heading", { name: `Remove barcode ${UNNAMED_RICE_EAN_8}?` })
+        .waitFor({ state: "visible" });
+    },
   },
 
   // Locations (PER-288): Rice split across a "Pantry" location and the

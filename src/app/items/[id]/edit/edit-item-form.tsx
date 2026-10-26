@@ -2,6 +2,8 @@
 
 import { editItem } from "../../actions";
 import { ItemForm } from "../../item-form";
+import { ItemRegistrations } from "./item-registrations";
+import type { ItemBarcodeRegistration } from "@/lib/barcode-registrations";
 import type { LocationOption } from "@/lib/location";
 import type { PantryItemUnit } from "@/lib/pantry-item";
 
@@ -15,9 +17,10 @@ type Props = {
     locationId: string | null;
   };
   locations: LocationOption[];
+  barcodeRegistrations: ItemBarcodeRegistration[];
 };
 
-export function EditItemForm({ item, locations }: Props) {
+export function EditItemForm({ item, locations, barcodeRegistrations }: Props) {
   return (
     <ItemForm
       heading="Edit item"
@@ -32,6 +35,11 @@ export function EditItemForm({ item, locations }: Props) {
         minimumQuantity: item.minimumQuantity,
         locationId: item.locationId,
       }}
-    />
+    >
+      <ItemRegistrations
+        unit={item.unit}
+        registrations={barcodeRegistrations}
+      />
+    </ItemForm>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useState, type ReactNode } from "react";
 
 import { LocationPickerCombobox } from "../location-picker-combobox";
 import { PANEL_CARD_CLASS, PANEL_FOOTER_CLASS } from "../panel-styles";
@@ -31,6 +31,9 @@ type Props = {
   pendingLabel: string;
   locations: LocationOption[];
   defaultValues?: ItemFormDefaultValues;
+  // Rendered below the form, outside it — for sections that save on their
+  // own rather than through this form's submit (the edit page's Barcodes).
+  children?: ReactNode;
 };
 
 // Shared by the add and edit item pages (ADR 0004: "edit opens the same
@@ -43,6 +46,7 @@ export function ItemForm({
   pendingLabel,
   locations: initialLocations,
   defaultValues,
+  children,
 }: Props) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const [locations, setLocations] = useState(initialLocations);
@@ -51,7 +55,9 @@ export function ItemForm({
   );
 
   return (
-    <div className="flex flex-1 flex-col bg-zinc-50 px-4 pt-5 sm:items-center sm:justify-center sm:px-6 sm:py-8 dark:bg-black">
+    <div
+      className={`flex flex-1 flex-col bg-zinc-50 px-4 pt-5 sm:items-center sm:justify-center sm:px-6 sm:py-8 dark:bg-black ${children ? "gap-8 pb-8 sm:gap-4" : ""}`}
+    >
       <form
         action={formAction}
         className={`${PANEL_CARD_CLASS} flex-1 sm:flex-none`}
@@ -195,6 +201,7 @@ export function ItemForm({
           </Link>
         </div>
       </form>
+      {children}
     </div>
   );
 }

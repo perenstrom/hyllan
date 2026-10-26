@@ -44,6 +44,16 @@ export function canonicalBarcodeValue(
   return symbology === "upc_a" ? `0${value}` : value;
 }
 
+// The digits as printed on the package: a UPC-A registration loses the
+// leading zero canonicalization padded it with, everything else is stored
+// as printed already.
+export function displayBarcodeValue(
+  canonicalValue: string,
+  symbology: BarcodeSymbology,
+): string {
+  return symbology === "upc_a" ? canonicalValue.slice(1) : canonicalValue;
+}
+
 // For a value that comes back from the client already canonical (e.g. the
 // barcode an unregistered scan reported, now being registered): canonical
 // values are exactly the valid EAN-13s and EAN-8s.
