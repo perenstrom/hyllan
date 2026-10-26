@@ -104,6 +104,6 @@ describe("AddItemForm", () => {
     // isn't still narrowed to "unassigned".
     fireEvent.change(field, { target: { value: "" } });
 
-    expect(screen.getByRole("button", { name: "Pantry" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Pantry" })).toBeInTheDocument();
   });
 });

@@ -61,7 +61,7 @@ function pickerField() {
 
 function selectItem(name: string) {
   fireEvent.focus(pickerField());
-  fireEvent.mouseDown(screen.getByRole("button", { name }));
+  fireEvent.mouseDown(screen.getByRole("option", { name }));
 }
 
 describe("ShelfToStockDialog", () => {
@@ -86,8 +86,8 @@ describe("ShelfToStockDialog", () => {
 
     fireEvent.focus(pickerField());
 
-    expect(screen.getByRole("button", { name: "Rice" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Flour" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Rice" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Flour" })).toBeInTheDocument();
   });
 
   it("shows the item's current quantity at this location once picked", () => {

@@ -1,13 +1,15 @@
 "use client";
 
 import { ScanBarcode } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   ACTION_BUTTON_BASE_CLASS,
   ACTION_ICON_CLASS,
 } from "@/app/action-button";
 import { MinusIcon, PlusIcon } from "@/app/icons";
+import { LISTBOX_OPTION_CLASS } from "@/app/listbox-styles";
+import { useListboxNavigation } from "@/app/use-listbox-navigation";
 import type { PantryItemUnit } from "@/lib/pantry-item";
 import { formatQuantity, parseQuantity } from "@/lib/pantry-item";
 
@@ -68,7 +70,7 @@ export function matchBatchItems(
 // (same pattern as ItemPickerCombobox/LocationPickerCombobox) plus an
 // explicit quantity with the Actions column's +/- stepper shape (ADR
 // 0004), clamped at 0. Enter in either field, or the action button,
-// commits.
+// commits — except Enter on a highlighted list option, which picks it.
 export function BatchEntryRow({
   items,
   allowCreate,
@@ -82,6 +84,7 @@ export function BatchEntryRow({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(DEFAULT_QUANTITY);
   const [error, setError] = useState<string | null>(null);
+  const quantityRef = useRef<HTMLInputElement>(null);
 
   const { trimmed, matches, exactMatch, canCreate } = matchBatchItems(
     items,
@@ -153,6 +156,25 @@ export function BatchEntryRow({
     }
   }
 
+  const listOpen = open && trimmed.length > 0;
+  // Matches, then the "Add as a new item" row when it applies.
+  const { inputProps, listboxProps, optionProps } = useListboxNavigation({
+    optionCount: matches.length + (canCreate ? 1 : 0),
+    open: listOpen,
+    query,
+    onOpen: () => setOpen(true),
+    onClose: () => setOpen(false),
+    onActivate: (index) => {
+      if (index < matches.length) {
+        selectExisting(matches[index]);
+        // From the keyboard the next thing to set is the amount.
+        quantityRef.current?.focus();
+      } else {
+        void commit();
+      }
+    },
+  });
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
@@ -165,6 +187,7 @@ export function BatchEntryRow({
           </label>
           <div className="relative mt-1">
             <input
+              {...inputProps}
               id="batch-item"
               value={query}
               onChange={(event) => {
@@ -175,7 +198,14 @@ export function BatchEntryRow({
               }}
               onFocus={() => setOpen(true)}
               onBlur={() => setTimeout(() => setOpen(false), 100)}
-              onKeyDown={commitOnEnter}
+              onKeyDown={(event) => {
+                // Arrows, Escape and Enter on a highlighted option belong
+                // to the list; an unhighlighted Enter still commits.
+                inputProps.onKeyDown(event);
+                if (!event.defaultPrevented) {
+                  commitOnEnter(event);
+                }
+              }}
               placeholder={
                 allowCreate ? "Search or add an item" : "Search for an item"
               }
@@ -195,35 +225,38 @@ export function BatchEntryRow({
               />
             </button>
           </div>
-          {open && trimmed.length > 0 && (
-            <ul className="absolute top-full z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
-              {matches.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    onMouseDown={() => selectExisting(item)}
-                    className="block w-full px-3 py-2.5 text-left sm:py-1.5 text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                  >
-                    {item.name}{" "}
-                    <span className="text-zinc-500 dark:text-zinc-500">
-                      ({formatQuantity(item.quantity, item.unit)})
-                    </span>
-                  </button>
+          {listOpen && (
+            <ul
+              {...listboxProps}
+              className="absolute top-full z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
+            >
+              {matches.map((item, index) => (
+                <li
+                  key={item.id}
+                  {...optionProps(index)}
+                  onMouseDown={() => selectExisting(item)}
+                  className={LISTBOX_OPTION_CLASS}
+                >
+                  {item.name}{" "}
+                  <span className="text-zinc-500 dark:text-zinc-500">
+                    ({formatQuantity(item.quantity, item.unit)})
+                  </span>
                 </li>
               ))}
               {canCreate && (
-                <li>
-                  <button
-                    type="button"
-                    onMouseDown={() => void commit()}
-                    className="block w-full px-3 py-2.5 text-left sm:py-1.5 text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                  >
-                    Add &ldquo;{trimmed}&rdquo; as a new item
-                  </button>
+                <li
+                  {...optionProps(matches.length)}
+                  onMouseDown={() => void commit()}
+                  className={LISTBOX_OPTION_CLASS}
+                >
+                  Add &ldquo;{trimmed}&rdquo; as a new item
                 </li>
               )}
               {matches.length === 0 && !canCreate && (
-                <li className="px-3 py-1.5 text-zinc-500 dark:text-zinc-500">
+                <li
+                  role="presentation"
+                  className="px-3 py-1.5 text-zinc-500 dark:text-zinc-500"
+                >
                   No matches
                 </li>
               )}
@@ -249,6 +282,7 @@ export function BatchEntryRow({
               <MinusIcon className={ACTION_ICON_CLASS} />
             </button>
             <input
+              ref={quantityRef}
               id="batch-quantity"
               type="number"
               min="0"

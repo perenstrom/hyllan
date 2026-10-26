@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 
+import { LISTBOX_OPTION_CLASS } from "@/app/listbox-styles";
+import { useListboxNavigation } from "@/app/use-listbox-navigation";
+
 export type ItemPickerOption = { id: string; name: string };
 
 type Props = {
@@ -32,9 +35,19 @@ export function ItemPickerCombobox({ id, items, value, onChange }: Props) {
     setOpen(false);
   }
 
+  const { inputProps, listboxProps, optionProps } = useListboxNavigation({
+    optionCount: matches.length,
+    open,
+    query,
+    onOpen: () => setOpen(true),
+    onClose: () => setOpen(false),
+    onActivate: (index) => select(matches[index]),
+  });
+
   return (
     <div className="relative">
       <input
+        {...inputProps}
         id={id}
         value={query}
         onChange={(event) => {
@@ -52,20 +65,25 @@ export function ItemPickerCombobox({ id, items, value, onChange }: Props) {
       />
 
       {open && (
-        <ul className="absolute top-full z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
-          {matches.map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                onMouseDown={() => select(item)}
-                className="block w-full px-3 py-2.5 text-left sm:py-1.5 text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-              >
-                {item.name}
-              </button>
+        <ul
+          {...listboxProps}
+          className="absolute top-full z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
+        >
+          {matches.map((item, index) => (
+            <li
+              key={item.id}
+              {...optionProps(index)}
+              onMouseDown={() => select(item)}
+              className={LISTBOX_OPTION_CLASS}
+            >
+              {item.name}
             </li>
           ))}
           {matches.length === 0 && (
-            <li className="px-3 py-1.5 text-zinc-500 dark:text-zinc-500">
+            <li
+              role="presentation"
+              className="px-3 py-1.5 text-zinc-500 dark:text-zinc-500"
+            >
               No matches
             </li>
           )}

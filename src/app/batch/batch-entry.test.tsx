@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { BatchEntryResult } from "./actions";
@@ -52,7 +53,7 @@ function typeItem(text: string) {
 
 function selectItem(name: string) {
   typeItem(name.slice(0, 2));
-  fireEvent.mouseDown(screen.getByRole("button", { name: new RegExp(name) }));
+  fireEvent.mouseDown(screen.getByRole("option", { name: new RegExp(name) }));
 }
 
 function sessionLog() {
@@ -165,7 +166,7 @@ describe("BatchEntry", () => {
     fireEvent.change(quantityField(), { target: { value: "2" } });
     typeItem("Lentils");
     fireEvent.mouseDown(
-      screen.getByRole("button", { name: "Add “Lentils” as a new item" }),
+      screen.getByRole("option", { name: "Add “Lentils” as a new item" }),
     );
 
     expect(createBatchItemMock).toHaveBeenCalledWith("Lentils", "2");
@@ -190,7 +191,7 @@ describe("BatchEntry", () => {
 
     typeItem("Lentils");
     expect(
-      screen.queryByRole("button", { name: /as a new item/ }),
+      screen.queryByRole("option", { name: /as a new item/ }),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
 
@@ -273,5 +274,115 @@ describe("BatchEntry", () => {
     expect(
       screen.queryByRole("button", { name: "Reverse Rice" }),
     ).not.toBeInTheDocument();
+  });
+
+  describe("keyboard", () => {
+    function highlighted() {
+      const option = screen.getByRole("option", { selected: true });
+      expect(itemField()).toHaveAttribute("aria-activedescendant", option.id);
+      return option;
+    }
+
+    it("arrows through the matches and the add row without wrapping, and ArrowUp from the top clears", async () => {
+      const user = userEvent.setup();
+      renderBatch("add");
+
+      await user.click(itemField());
+      await user.keyboard("e");
+      expect(itemField()).toHaveAttribute("role", "combobox");
+      expect(itemField()).not.toHaveAttribute("aria-activedescendant");
+
+      await user.keyboard("{ArrowDown}");
+      expect(highlighted()).toHaveAccessibleName(/^Rice/);
+      await user.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}");
+      expect(highlighted()).toHaveAccessibleName("Add “e” as a new item");
+      await user.keyboard("{ArrowUp}{ArrowUp}{ArrowUp}");
+      expect(itemField()).not.toHaveAttribute("aria-activedescendant");
+    });
+
+    it("clears the highlight when the text changes", async () => {
+      const user = userEvent.setup();
+      renderBatch("add");
+
+      await user.click(itemField());
+      await user.keyboard("e{ArrowDown}a");
+
+      expect(itemField()).not.toHaveAttribute("aria-activedescendant");
+    });
+
+    it("selects a highlighted item on Enter and moves to Quantity without committing, then a second Enter commits it", async () => {
+      adjustBatchItemMock.mockResolvedValue(
+        ok("beans", "Beans", "count", "1", "5"),
+      );
+      const user = userEvent.setup();
+      renderBatch("add");
+
+      await user.click(itemField());
+      await user.keyboard("be{ArrowDown}{Enter}");
+
+      expect(itemField()).toHaveValue("Beans");
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+      expect(quantityField()).toHaveFocus();
+      expect(adjustBatchItemMock).not.toHaveBeenCalled();
+
+      await user.keyboard("{Enter}");
+      expect(adjustBatchItemMock).toHaveBeenCalledExactlyOnceWith("beans", "1");
+    });
+
+    it("commits a new item when the add row is highlighted on Enter", async () => {
+      createBatchItemMock.mockResolvedValue(
+        ok("lentils", "Lentils", "count", "1", "1"),
+      );
+      const user = userEvent.setup();
+      renderBatch("add");
+
+      await user.click(itemField());
+      await user.keyboard("Lentils{ArrowDown}{Enter}");
+
+      expect(createBatchItemMock).toHaveBeenCalledExactlyOnceWith(
+        "Lentils",
+        "1",
+      );
+      expect(adjustBatchItemMock).not.toHaveBeenCalled();
+    });
+
+    it("still commits the exact match on Enter when nothing is highlighted", async () => {
+      adjustBatchItemMock.mockResolvedValue(ok("rice", "Rice", "kg", "1", "4"));
+      const user = userEvent.setup();
+      renderBatch("add");
+
+      await user.click(itemField());
+      await user.keyboard("rice{Enter}");
+
+      expect(adjustBatchItemMock).toHaveBeenCalledExactlyOnceWith("rice", "1");
+    });
+
+    it("still shows the no-match error on an unhighlighted Enter in remove mode", async () => {
+      const user = userEvent.setup();
+      renderBatch("remove");
+
+      await user.click(itemField());
+      await user.keyboard("Lentils{Enter}");
+
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "No item matches “Lentils”.",
+      );
+      expect(adjustBatchItemMock).not.toHaveBeenCalled();
+    });
+
+    it("closes the list on Escape and keeps the typed text", async () => {
+      const user = userEvent.setup();
+      renderBatch("add");
+
+      await user.click(itemField());
+      await user.keyboard("ri{ArrowDown}{Escape}");
+
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+      expect(itemField()).toHaveValue("ri");
+      expect(itemField()).toHaveAttribute("aria-expanded", "false");
+
+      await user.keyboard("{ArrowDown}");
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+    });
   });
 });
