@@ -126,20 +126,41 @@ beforeEach(() => {
 });
 
 describe("BatchEntry scanning", () => {
-  it("keeps the camera off until the scan icon in the item field is toggled", () => {
+  it("keeps the camera off until the scan icon in the item field is pressed", () => {
     renderBatch("add");
     expect(screen.queryByTestId("scanner")).not.toBeInTheDocument();
 
     openScanner();
     expect(screen.getByTestId("scanner")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Close barcode scanner" }),
-    ).toHaveAttribute("aria-pressed", "true");
+  });
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Close barcode scanner" }),
-    );
+  it("swaps manual entry for scan help while the camera is up, and back on Type instead", () => {
+    renderBatch("add");
+
+    openScanner();
+    expect(
+      screen.getByText("Scan a barcode to add an item"),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Item")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Quantity")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Add" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Type instead" }));
     expect(screen.queryByTestId("scanner")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Item")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
+  });
+
+  it("words the scan help for removing in remove mode", () => {
+    renderBatch("remove");
+
+    openScanner();
+
+    expect(
+      screen.getByText("Scan a barcode to remove an item"),
+    ).toBeInTheDocument();
   });
 
   it("applies a registered barcode straight away and logs it as a scan", async () => {

@@ -252,11 +252,11 @@ export function BarcodeScanner({ paused, onDetected }: Props) {
     state === "requesting"
       ? "Requesting camera access…"
       : state === "denied"
-        ? "Camera access denied — check your browser's site settings, or type the item above."
+        ? "Camera access denied — check your browser's site settings, or tap Type instead."
         : state === "unsupported"
-          ? "No camera available in this browser — type the item above."
+          ? "No camera available in this browser — tap Type instead."
           : decoderFailed
-            ? "Barcode reading couldn't start — type the item above."
+            ? "Barcode reading couldn't start — tap Type instead."
             : null;
 
   return (

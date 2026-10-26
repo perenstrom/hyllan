@@ -1,6 +1,6 @@
 "use client";
 
-import { Undo2 } from "lucide-react";
+import { Keyboard, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState } from "react";
 
@@ -277,18 +277,39 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
         </Link>
       </div>
 
-      <BatchEntryRow
-        items={items}
-        allowCreate={direction === "add"}
-        actionLabel={direction === "add" ? "Add" : "Remove"}
-        pending={pending}
-        onCommit={commit}
-        scanActive={scanning}
-        onToggleScan={() => {
-          setScanning((current) => !current);
-          setScanMessage(null);
-        }}
-      />
+      {/* Scanning takes over the top of the page: typing, the quantity
+          (a scan always moves exactly one) and the Add/Remove button only
+          get in the way while the camera is up. */}
+      {scanning ? (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-zinc-700 dark:text-zinc-300">
+            Scan a barcode to {direction === "add" ? "add" : "remove"} an item
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setScanning(false);
+              setScanMessage(null);
+            }}
+            className="flex h-11 shrink-0 items-center gap-1.5 rounded border border-zinc-300 px-3 text-sm text-zinc-700 sm:h-9 dark:border-zinc-700 dark:text-zinc-300"
+          >
+            <Keyboard className="h-4 w-4" aria-hidden="true" />
+            Type instead
+          </button>
+        </div>
+      ) : (
+        <BatchEntryRow
+          items={items}
+          allowCreate={direction === "add"}
+          actionLabel={direction === "add" ? "Add" : "Remove"}
+          pending={pending}
+          onCommit={commit}
+          onStartScan={() => {
+            setScanning(true);
+            setScanMessage(null);
+          }}
+        />
+      )}
 
       {scanMessage && (
         <p

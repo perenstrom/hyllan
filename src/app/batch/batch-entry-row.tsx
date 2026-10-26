@@ -33,10 +33,9 @@ type Props = {
   ) => Promise<string | null>;
   // The scan icon sits inside the item field, but the camera panel it
   // opens belongs to the page (it sits alongside the registration flow,
-  // which this row knows nothing about) — so the row only reports the
-  // toggle (PER-308).
-  scanActive: boolean;
-  onToggleScan: () => void;
+  // which this row knows nothing about), and the page swaps this row out
+  // while scanning — so the row only reports the request (PER-308).
+  onStartScan: () => void;
 };
 
 const DEFAULT_QUANTITY = "1";
@@ -76,8 +75,7 @@ export function BatchEntryRow({
   actionLabel,
   pending,
   onCommit,
-  scanActive,
-  onToggleScan,
+  onStartScan,
 }: Props) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -186,17 +184,10 @@ export function BatchEntryRow({
             />
             <button
               type="button"
-              onClick={onToggleScan}
-              aria-pressed={scanActive}
-              aria-label={
-                scanActive ? "Close barcode scanner" : "Scan a barcode"
-              }
-              title={scanActive ? "Close barcode scanner" : "Scan a barcode"}
-              className={`absolute top-1/2 right-1 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-zinc-500 hover:text-zinc-800 sm:h-8 sm:w-8 dark:text-zinc-400 dark:hover:text-zinc-100 ${
-                scanActive
-                  ? "bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-50"
-                  : ""
-              }`}
+              onClick={onStartScan}
+              aria-label="Scan a barcode"
+              title="Scan a barcode"
+              className="absolute top-1/2 right-1 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-zinc-500 hover:text-zinc-800 sm:h-8 sm:w-8 dark:text-zinc-400 dark:hover:text-zinc-100"
             >
               <ScanBarcode
                 className="h-5 w-5 sm:h-4 sm:w-4"
