@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   // Deployable as a self-contained `.next/standalone` server image — see
   // Dockerfile.
   output: "standalone",
+  // Next 16 blocks dev-server assets requested from a host other than the
+  // one it was started on; this lets a phone load them via the Mac's
+  // Bonjour name (`npm run dev:lan`). Dev server only.
+  allowedDevOrigins: ["*.local"],
   async rewrites() {
     // @supabase/ssr's clients always call `${NEXT_PUBLIC_SUPABASE_URL}/auth/v1/...`
     // (Kong's job in the full Supabase stack is normally to strip that

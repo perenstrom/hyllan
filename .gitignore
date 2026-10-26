@@ -28,6 +28,8 @@
 # misc
 .DS_Store
 *.pem
+# dev:lan's local CA and certificates (including the CA private key)
+/.certs/
 
 # debug
 npm-debug.log*
