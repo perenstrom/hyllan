@@ -1,5 +1,6 @@
 "use client";
 
+import { ScanBarcode } from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -30,9 +31,38 @@ type Props = {
     target: BatchCommitTarget,
     quantity: string,
   ) => Promise<string | null>;
+  // The scan icon sits inside the item field, but the camera panel it
+  // opens belongs to the page (it sits alongside the registration flow,
+  // which this row knows nothing about), and the page swaps this row out
+  // while scanning — so the row only reports the request (PER-308).
+  onStartScan: () => void;
 };
 
 const DEFAULT_QUANTITY = "1";
+
+// What a search-or-create field offers for what's typed: case-insensitive
+// substring matches, the exact match (names are unique per household
+// case-insensitively, ADR 0001), and whether "Add as a new item" applies.
+// Shared with the barcode pick-or-create panel.
+export function matchBatchItems(
+  items: BatchItemOption[],
+  query: string,
+  allowCreate: boolean,
+) {
+  const trimmed = query.trim();
+  const normalized = trimmed.toLowerCase();
+  const exactMatch = items.find(
+    (item) => item.name.toLowerCase() === normalized,
+  );
+  return {
+    trimmed,
+    matches: items.filter((item) =>
+      item.name.toLowerCase().includes(normalized),
+    ),
+    exactMatch,
+    canCreate: allowCreate && trimmed.length > 0 && !exactMatch,
+  };
+}
 
 // The quick-entry row: a filtering autocomplete over the household's items
 // (same pattern as ItemPickerCombobox/LocationPickerCombobox) plus an
@@ -45,6 +75,7 @@ export function BatchEntryRow({
   actionLabel,
   pending,
   onCommit,
+  onStartScan,
 }: Props) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -52,15 +83,11 @@ export function BatchEntryRow({
   const [quantity, setQuantity] = useState(DEFAULT_QUANTITY);
   const [error, setError] = useState<string | null>(null);
 
-  const trimmed = query.trim();
-  const normalized = trimmed.toLowerCase();
-  const matches = items.filter((item) =>
-    item.name.toLowerCase().includes(normalized),
+  const { trimmed, matches, exactMatch, canCreate } = matchBatchItems(
+    items,
+    query,
+    allowCreate,
   );
-  const exactMatch = items.find(
-    (item) => item.name.toLowerCase() === normalized,
-  );
-  const canCreate = allowCreate && trimmed.length > 0 && !exactMatch;
 
   function step(delta: number) {
     const current = Number(quantity);
@@ -136,24 +163,38 @@ export function BatchEntryRow({
           >
             Item
           </label>
-          <input
-            id="batch-item"
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setSelectedId(null);
-              setOpen(true);
-              setError(null);
-            }}
-            onFocus={() => setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 100)}
-            onKeyDown={commitOnEnter}
-            placeholder={
-              allowCreate ? "Search or add an item" : "Search for an item"
-            }
-            autoComplete="off"
-            className="mt-1 h-11 w-full rounded border border-zinc-300 bg-white px-3 sm:h-10 dark:border-zinc-700 dark:bg-zinc-900"
-          />
+          <div className="relative mt-1">
+            <input
+              id="batch-item"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setSelectedId(null);
+                setOpen(true);
+                setError(null);
+              }}
+              onFocus={() => setOpen(true)}
+              onBlur={() => setTimeout(() => setOpen(false), 100)}
+              onKeyDown={commitOnEnter}
+              placeholder={
+                allowCreate ? "Search or add an item" : "Search for an item"
+              }
+              autoComplete="off"
+              className="h-11 w-full rounded border border-zinc-300 bg-white pr-12 pl-3 sm:h-10 sm:pr-10 dark:border-zinc-700 dark:bg-zinc-900"
+            />
+            <button
+              type="button"
+              onClick={onStartScan}
+              aria-label="Scan a barcode"
+              title="Scan a barcode"
+              className="absolute top-1/2 right-1 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-zinc-500 hover:text-zinc-800 sm:h-8 sm:w-8 dark:text-zinc-400 dark:hover:text-zinc-100"
+            >
+              <ScanBarcode
+                className="h-5 w-5 sm:h-4 sm:w-4"
+                aria-hidden="true"
+              />
+            </button>
+          </div>
           {open && trimmed.length > 0 && (
             <ul className="absolute top-full z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
               {matches.map((item) => (

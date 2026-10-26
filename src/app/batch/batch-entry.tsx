@@ -1,6 +1,6 @@
 "use client";
 
-import { Undo2 } from "lucide-react";
+import { Keyboard, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState } from "react";
 
@@ -8,13 +8,21 @@ import {
   adjustBatchItem,
   createBatchItem,
   type BatchEntryChange,
-  type BatchEntryResult,
 } from "./actions";
+import { BarcodeRegisterPanel } from "./barcode-register-panel";
+import { BarcodeScanner } from "./barcode-scanner";
 import {
   BatchEntryRow,
   type BatchCommitTarget,
   type BatchItemOption,
 } from "./batch-entry-row";
+import { ReassignBarcodeDialog } from "./reassign-barcode-dialog";
+import {
+  registerScannedBarcode,
+  scanBatchBarcode,
+  type BarcodeRegistrationChoice,
+} from "./scan-actions";
+import type { ScannedBarcode } from "@/lib/barcode";
 import { formatQuantity } from "@/lib/pantry-item";
 
 export type BatchDirection = "add" | "remove";
@@ -26,6 +34,20 @@ type LogEntry = BatchEntryChange & {
   // that was applied.
   reversed: boolean;
   isReversal: boolean;
+};
+
+// An open pick-or-create panel: for a first scan of an unregistered
+// barcode, or for "Wrong item?" correcting a logged scan's registration.
+type RegisterRequest =
+  | { barcode: ScannedBarcode; mode: "register" }
+  | { barcode: ScannedBarcode; mode: "correct"; wrongItemName: string };
+
+// A pick that hit a registration on another item, waiting on the
+// household to confirm the move (ADR 0007).
+type ReassignRequest = {
+  choice: BarcodeRegistrationChoice;
+  fromItemName: string;
+  toItemName: string;
 };
 
 type Props = {
@@ -51,11 +73,26 @@ function formatDelta(delta: string, unit: BatchEntryChange["unit"]) {
 // each be reversed. Reversing is a real mutation — the inverse of the
 // delta actually applied, against the item's *current* quantity — not a
 // rollback to the value at commit time.
+//
+// Scanning (PER-308) is a second input method on the same page: the
+// item field's scan icon opens the camera, a registered barcode applies
+// its per-scan amount, and an unregistered one opens the pick-or-create
+// panel (add mode only — remove never creates).
 export function BatchEntry({ direction, items: initialItems }: Props) {
   const [items, setItems] = useState(initialItems);
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [pending, setPending] = useState(false);
   const [reverseError, setReverseError] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanMessage, setScanMessage] = useState<{
+    text: string;
+    isError: boolean;
+  } | null>(null);
+  const [registerRequest, setRegisterRequest] =
+    useState<RegisterRequest | null>(null);
+  const [registerError, setRegisterError] = useState<string | null>(null);
+  const [reassignRequest, setReassignRequest] =
+    useState<ReassignRequest | null>(null);
   const nextEntryId = useRef(0);
 
   // Keeps the picker's per-item totals current with what the server
@@ -85,7 +122,7 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
     return entry;
   }
 
-  async function run(action: () => Promise<BatchEntryResult>) {
+  async function run<T>(action: () => Promise<T>) {
     setPending(true);
     try {
       return await action();
@@ -109,14 +146,90 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
     if (!result.ok) {
       return result.error;
     }
-    // Batch entry only removes from the unassigned bucket, so an item whose
-    // stock all sits at Locations (or is already at zero there) clamps to a
-    // no-op — say so rather than logging a "+0" that reads like success.
-    if (Number(result.entry.delta) === 0) {
-      return `Nothing removed — ${result.entry.itemName} has no unassigned stock.`;
+    return recordApplied(result.entry);
+  }
+
+  // Batch entry only removes from the unassigned bucket, so an item whose
+  // stock all sits at Locations (or is already at zero there) clamps to a
+  // no-op — say so rather than logging a "+0" that reads like success.
+  function recordApplied(change: BatchEntryChange): string | null {
+    if (Number(change.delta) === 0) {
+      return `Nothing removed — ${change.itemName} has no unassigned stock.`;
     }
-    record(result.entry, { isReversal: false });
+    record(change, { isReversal: false });
     return null;
+  }
+
+  async function handleDetected(rawValue: string, format: string) {
+    setScanMessage(null);
+    const result = await run(() =>
+      scanBatchBarcode(rawValue, format, direction),
+    );
+    if (!result.ok) {
+      setScanMessage({ text: result.error, isError: true });
+    } else if (result.kind === "applied") {
+      const failure = recordApplied(result.entry);
+      if (failure) {
+        setScanMessage({ text: failure, isError: true });
+      }
+    } else if (direction === "add") {
+      openRegister({ barcode: result.barcode, mode: "register" });
+    } else {
+      setScanMessage({
+        text: `${result.barcode.value} isn't registered to an item yet — scan it on Add stock to register it.`,
+        isError: false,
+      });
+    }
+  }
+
+  function openRegister(request: RegisterRequest) {
+    setRegisterError(null);
+    setRegisterRequest(request);
+  }
+
+  function closeRegister() {
+    setRegisterRequest(null);
+    setReassignRequest(null);
+  }
+
+  async function pick(choice: BarcodeRegistrationChoice, reassign = false) {
+    if (!registerRequest) {
+      return;
+    }
+    setRegisterError(null);
+    const result = await run(() =>
+      registerScannedBarcode(
+        registerRequest.barcode,
+        choice,
+        direction,
+        reassign,
+      ),
+    );
+    if ("conflict" in result) {
+      const { target } = choice;
+      setReassignRequest({
+        choice,
+        fromItemName: result.conflict.itemName,
+        toItemName:
+          "itemId" in target
+            ? (items.find((item) => item.id === target.itemId)?.name ??
+              "this item")
+            : target.newItemName.trim(),
+      });
+      return;
+    }
+    setReassignRequest(null);
+    if (!result.ok) {
+      setRegisterError(result.error);
+      return;
+    }
+    // The barcode is registered either way by now, so the panel's job is
+    // done even when a removal found nothing to take.
+    closeRegister();
+    const failure = recordApplied(result.entry);
+    if (failure) {
+      setScanMessage({ text: failure, isError: true });
+    }
   }
 
   async function reverse(original: LogEntry) {
@@ -126,7 +239,7 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
     );
     if (!result.ok) {
       setReverseError(result.error);
-      return;
+      return false;
     }
     record(result.entry, { isReversal: true });
     setEntries((current) =>
@@ -134,6 +247,25 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
         entry.id === original.id ? { ...entry, reversed: true } : entry,
       ),
     );
+    return true;
+  }
+
+  // "Wrong item?" on a logged scan: undo what it applied, then let the
+  // household pick the item that barcode should really count as — which
+  // repoints the registration (after confirming) and applies the scan
+  // there instead.
+  async function correctScan(original: LogEntry) {
+    if (!original.barcode) {
+      return;
+    }
+    const { barcode } = original;
+    if (await reverse(original)) {
+      openRegister({
+        barcode,
+        mode: "correct",
+        wrongItemName: original.itemName,
+      });
+    }
   }
 
   return (
@@ -150,13 +282,90 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
         </Link>
       </div>
 
-      <BatchEntryRow
-        items={items}
-        allowCreate={direction === "add"}
-        actionLabel={direction === "add" ? "Add" : "Remove"}
-        pending={pending}
-        onCommit={commit}
-      />
+      {/* Scanning takes over the top of the page: typing, the quantity
+          (a scan moves its barcode's own amount) and the Add/Remove button only
+          get in the way while the camera is up. */}
+      {scanning ? (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-zinc-700 dark:text-zinc-300">
+            Scan a barcode to {direction === "add" ? "add" : "remove"} an item
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setScanning(false);
+              setScanMessage(null);
+            }}
+            className="flex h-11 shrink-0 items-center gap-1.5 rounded border border-zinc-300 px-3 text-sm text-zinc-700 sm:h-9 dark:border-zinc-700 dark:text-zinc-300"
+          >
+            <Keyboard className="h-4 w-4" aria-hidden="true" />
+            Type instead
+          </button>
+        </div>
+      ) : (
+        <BatchEntryRow
+          items={items}
+          allowCreate={direction === "add"}
+          actionLabel={direction === "add" ? "Add" : "Remove"}
+          pending={pending}
+          onCommit={commit}
+          onStartScan={() => {
+            setScanning(true);
+            setScanMessage(null);
+          }}
+        />
+      )}
+
+      {scanMessage && (
+        <p
+          role={scanMessage.isError ? "alert" : "status"}
+          className={`-mt-2 text-sm ${
+            scanMessage.isError
+              ? "text-red-600"
+              : "text-zinc-600 dark:text-zinc-400"
+          }`}
+        >
+          {scanMessage.text}
+        </p>
+      )}
+
+      {scanning && (
+        <BarcodeScanner
+          paused={pending || registerRequest !== null}
+          onDetected={(rawValue, format) =>
+            void handleDetected(rawValue, format)
+          }
+        />
+      )}
+
+      {registerRequest && (
+        <BarcodeRegisterPanel
+          key={`${registerRequest.mode}:${registerRequest.barcode.value}`}
+          barcode={registerRequest.barcode}
+          mode={registerRequest.mode}
+          wrongItemName={
+            registerRequest.mode === "correct"
+              ? registerRequest.wrongItemName
+              : undefined
+          }
+          items={items}
+          direction={direction}
+          pending={pending}
+          error={registerError}
+          onPick={(choice) => void pick(choice)}
+          onCancel={closeRegister}
+        />
+      )}
+
+      {reassignRequest && (
+        <ReassignBarcodeDialog
+          fromItemName={reassignRequest.fromItemName}
+          toItemName={reassignRequest.toItemName}
+          pending={pending}
+          onConfirm={() => void pick(reassignRequest.choice, true)}
+          onCancel={() => setReassignRequest(null)}
+        />
+      )}
 
       <section>
         <h2
@@ -186,19 +395,39 @@ export function BatchEntry({ direction, items: initialItems }: Props) {
                   entry.reversed ? "opacity-50" : ""
                 }`}
               >
-                <span>
-                  {entry.reversed ? (
-                    <del>{entry.itemName}</del>
-                  ) : (
-                    entry.itemName
-                  )}
-                  {entry.isReversal && (
-                    <span className="ml-1 text-xs text-zinc-500 dark:text-zinc-500">
-                      (reversal)
-                    </span>
+                {/* "Wrong item?" drops below the name on a phone, where a
+                    long name beside it would squeeze the delta into wrapping. */}
+                <span className="flex min-w-0 flex-col items-start sm:flex-row sm:items-center">
+                  <span>
+                    {entry.reversed ? (
+                      <del>{entry.itemName}</del>
+                    ) : (
+                      entry.itemName
+                    )}
+                    {entry.barcode && !entry.isReversal && (
+                      <span className="ml-1 text-xs text-zinc-500 dark:text-zinc-500">
+                        (scan)
+                      </span>
+                    )}
+                    {entry.isReversal && (
+                      <span className="ml-1 text-xs text-zinc-500 dark:text-zinc-500">
+                        (reversal)
+                      </span>
+                    )}
+                  </span>
+                  {entry.barcode && !entry.reversed && !entry.isReversal && (
+                    <button
+                      type="button"
+                      onClick={() => void correctScan(entry)}
+                      disabled={pending}
+                      aria-label={`Wrong item? (${entry.itemName})`}
+                      className="-mb-1 py-1 text-xs text-zinc-500 underline sm:-my-2 sm:ml-2 sm:py-2 hover:text-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-400 dark:hover:text-zinc-200"
+                    >
+                      Wrong item?
+                    </button>
                   )}
                 </span>
-                <span className="flex items-center gap-2">
+                <span className="flex shrink-0 items-center gap-2 whitespace-nowrap">
                   <span
                     className={
                       entry.delta.startsWith("-")

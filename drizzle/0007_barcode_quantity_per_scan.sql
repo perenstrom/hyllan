@@ -1,0 +1,2 @@
+ALTER TABLE "barcode_registrations" ADD COLUMN "quantity_per_scan" numeric DEFAULT '1' NOT NULL;--> statement-breakpoint
+ALTER TABLE "barcode_registrations" ADD CONSTRAINT "barcode_registrations_quantity_per_scan_positive" CHECK ("barcode_registrations"."quantity_per_scan" > 0);

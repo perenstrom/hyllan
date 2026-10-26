@@ -27,6 +27,16 @@ export type Scenario = {
   // A static route, or one computed from the seeded data (e.g. an item's
   // id for the edit-item route).
   route: string | ((ctx: SeededContext) => string);
+  // Barcode registrations (ADR 0007) to create once the items exist, by
+  // seeded item name, and name-lookup cache entries (ADR 0008) to pre-fill
+  // — scan scenarios use these so their outcome doesn't depend on live
+  // lookup APIs.
+  barcodeRegistrations?: {
+    itemName: string;
+    value: string;
+    quantityPerScan?: string;
+  }[];
+  productNames?: { value: string; name: string }[];
   // Extra steps to reach a state that isn't a route by itself, e.g.
   // opening a dialog.
   interactions?: (page: Page) => Promise<void>;
@@ -67,6 +77,96 @@ const DELETABLE_ITEM: AddPantryItemInput = {
   unit: "kg",
   minimumQuantity: null,
 };
+
+// Valid EAN-13s for the scan scenarios — one registered, one not.
+const REGISTERED_EAN = "7310865004703";
+const UNREGISTERED_EAN = "4006381333931";
+
+// Headless Chromium has no camera, so scan scenarios swap getUserMedia for
+// a canvas stream that draws a real EAN-13 — the actual decoder then reads
+// it, exactly as it would a pack held up to a phone. `null` makes the
+// camera request fail instead, as a denied permission would.
+async function fakeCamera(page: Page, ean: string | null) {
+  await page.evaluate((code) => {
+    const left = [
+      "0001101",
+      "0011001",
+      "0010011",
+      "0111101",
+      "0100011",
+      "0110001",
+      "0101111",
+      "0111011",
+      "0110111",
+      "0001011",
+    ];
+    const g = [
+      "0100111",
+      "0110011",
+      "0011011",
+      "0100001",
+      "0011101",
+      "0111001",
+      "0000101",
+      "0010001",
+      "0001001",
+      "0010111",
+    ];
+    const right = left.map((bits) =>
+      bits.replace(/./g, (bit) => (bit === "0" ? "1" : "0")),
+    );
+    const parity = [
+      "LLLLLL",
+      "LLGLGG",
+      "LLGGLG",
+      "LLGGGL",
+      "LGLLGG",
+      "LGGLLG",
+      "LGGGLL",
+      "LGLGLG",
+      "LGLGGL",
+      "LGGLGL",
+    ];
+
+    if (code === null) {
+      navigator.mediaDevices.getUserMedia = () =>
+        Promise.reject(new DOMException("denied", "NotAllowedError"));
+      return;
+    }
+
+    const digits = code.split("").map(Number);
+    let bits = "101";
+    for (let i = 1; i <= 6; i++) {
+      bits += (parity[digits[0]][i - 1] === "L" ? left : g)[digits[i]];
+    }
+    bits += "01010";
+    for (let i = 7; i <= 12; i++) {
+      bits += right[digits[i]];
+    }
+    bits += "101";
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 480;
+    const ctx = canvas.getContext("2d")!;
+    const draw = () => {
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, 640, 480);
+      ctx.fillStyle = "#000";
+      const x0 = (640 - bits.length * 4) / 2;
+      for (let i = 0; i < bits.length; i++) {
+        if (bits[i] === "1") {
+          ctx.fillRect(x0 + i * 4, 140, 4, 200);
+        }
+      }
+    };
+    draw();
+    setInterval(draw, 100);
+    navigator.mediaDevices.getUserMedia = async () => canvas.captureStream(10);
+    navigator.mediaDevices.enumerateDevices = async () => [];
+  }, ean);
+  await page.getByRole("button", { name: "Scan a barcode" }).click();
+}
 
 export const SCENARIOS: Scenario[] = [
   { name: "signed-out-home", route: "/" },
@@ -273,6 +373,83 @@ export const SCENARIOS: Scenario[] = [
       await page.getByRole("button", { name: "Remove", exact: true }).click();
       await page
         .getByText("No item matches “Lentils”.")
+        .waitFor({ state: "visible" });
+    },
+  },
+  {
+    name: "batch-scan-camera-denied",
+    seed: [EDITABLE_ITEM],
+    route: "/batch/add",
+    interactions: async (page) => {
+      await fakeCamera(page, null);
+      await page
+        .getByText("Camera access denied")
+        .waitFor({ state: "visible" });
+    },
+  },
+  {
+    name: "batch-scan-register-barcode",
+    seed: DEFAULT_SEED_ITEMS,
+    productNames: [{ value: UNREGISTERED_EAN, name: "Fusilli" }],
+    route: "/batch/add",
+    interactions: async (page) => {
+      await fakeCamera(page, UNREGISTERED_EAN);
+      // Tapping the chip shows both the suggestion's effect and the
+      // "Add as a new item" button that finishes the registration.
+      await page
+        .getByRole("button", { name: "Use suggested name Fusilli" })
+        .click();
+      await page
+        .getByRole("button", { name: "Add “Fusilli” as a new item" })
+        .waitFor({ state: "visible" });
+    },
+  },
+  {
+    name: "batch-scan-reassign-dialog",
+    seed: DEFAULT_SEED_ITEMS,
+    barcodeRegistrations: [{ itemName: "Pasta", value: REGISTERED_EAN }],
+    route: "/batch/add",
+    interactions: async (page) => {
+      await fakeCamera(page, REGISTERED_EAN);
+      await page.getByRole("button", { name: "Wrong item? (Pasta)" }).click();
+      await page.getByLabel("Pantry item").fill("Rice");
+      await page.getByRole("button", { name: "Rice", exact: true }).click();
+      await page.getByRole("button", { name: "Add 1 kg" }).click();
+      await page
+        .getByRole("heading", { name: "Move this barcode to Rice?" })
+        .waitFor({ state: "visible" });
+    },
+  },
+  {
+    // Step two of the pick-or-create panel: how much one scan is, with a
+    // unit picker since this is a new item.
+    name: "batch-scan-register-amount",
+    seed: DEFAULT_SEED_ITEMS,
+    productNames: [{ value: UNREGISTERED_EAN, name: "Fusilli" }],
+    route: "/batch/add",
+    interactions: async (page) => {
+      await fakeCamera(page, UNREGISTERED_EAN);
+      await page
+        .getByRole("button", { name: "Use suggested name Fusilli" })
+        .click();
+      await page
+        .getByRole("button", { name: "Add “Fusilli” as a new item" })
+        .click();
+      await page.getByLabel("Unit").selectOption("g");
+      await page.getByLabel(/Each scan of this barcode/).fill("500");
+      await page
+        .getByRole("button", { name: "Add 500 g" })
+        .waitFor({ state: "visible" });
+    },
+  },
+  {
+    name: "batch-remove-unregistered-scan",
+    seed: [EDITABLE_ITEM],
+    route: "/batch/remove",
+    interactions: async (page) => {
+      await fakeCamera(page, UNREGISTERED_EAN);
+      await page
+        .getByText("isn't registered to an item yet")
         .waitFor({ state: "visible" });
     },
   },

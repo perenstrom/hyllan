@@ -7,11 +7,13 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import type postgres from "postgres";
 
 import * as schema from "@/db/schema";
+import { barcodeProductNames } from "@/db/schema";
 import {
   ensureItemsForHousehold,
   ensureLocations,
   findOrCreateAuthUser,
 } from "@/db/seed-support";
+import { registerBarcode } from "@/lib/barcode-registrations";
 import { createHouseholdForUser } from "@/lib/household";
 import type { AddPantryItemInput } from "@/lib/pantry-items";
 import type { Scenario } from "./scenarios";
@@ -43,7 +45,10 @@ export type SeededContext = {
 export async function seedScenario(
   sql: postgres.Sql,
   scenarioName: string,
-  scenario: Pick<Scenario, "seed" | "locations">,
+  scenario: Pick<
+    Scenario,
+    "seed" | "locations" | "barcodeRegistrations" | "productNames"
+  >,
 ): Promise<SeededContext> {
   const db = drizzle(sql, { schema });
   const email = `screenshot-${scenarioName}@example.com`;
@@ -70,6 +75,36 @@ export async function seedScenario(
     household.id,
     items,
   );
+
+  // Reassigning on every run keeps a re-seeded scenario at its declared
+  // registrations even if a previous capture's interactions moved one.
+  for (const registration of scenario.barcodeRegistrations ?? []) {
+    const item = seededItems.find(({ name }) => name === registration.itemName);
+    if (!item) {
+      throw new Error(`No seeded item named ${registration.itemName}`);
+    }
+    await registerBarcode(db, household.id, {
+      barcodeValue: registration.value,
+      symbology: "ean_13",
+      pantryItemId: item.id,
+      quantityPerScan: registration.quantityPerScan ?? "1",
+      reassign: true,
+    });
+  }
+
+  // The lookup cache is shared across households, so pre-filling it is
+  // what keeps a scan scenario's name suggestion deterministic (and off
+  // the live lookup APIs) rather than whatever Open Food Facts says today.
+  for (const { value, name } of scenario.productNames ?? []) {
+    const row = { productName: name, source: "open_food_facts" as const };
+    await db
+      .insert(barcodeProductNames)
+      .values({ barcodeValue: value, ...row })
+      .onConflictDoUpdate({
+        target: barcodeProductNames.barcodeValue,
+        set: row,
+      });
+  }
 
   return {
     userId,

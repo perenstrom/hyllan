@@ -152,3 +152,65 @@ export const itemLocations = pgTable(
     check("item_locations_quantity_non_negative", sql`${table.quantity} >= 0`),
   ],
 );
+
+export const barcodeSymbologyEnum = pgEnum("barcode_symbology", [
+  "ean_13",
+  "upc_a",
+  "ean_8",
+]);
+
+// Links a scanned barcode to one of the household's pantry items (ADR
+// 0007). barcodeValue is the canonical form (src/lib/barcode.ts) — UPC-A
+// already padded into EAN-13 — so it alone is the identity; symbology is
+// informational only. Cascades with the pantry item: a registration
+// pointing at nothing serves no purpose.
+export const barcodeRegistrations = pgTable(
+  "barcode_registrations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    pantryItemId: uuid("pantry_item_id")
+      .notNull()
+      .references(() => pantryItems.id, { onDelete: "cascade" }),
+    barcodeValue: text("barcode_value").notNull(),
+    symbology: barcodeSymbologyEnum("symbology").notNull(),
+    // How much one scan of this barcode adds or removes, in the item's own
+    // unit — a pack's barcode stands for a fixed amount (a 500 g bag is
+    // 500, a six-pack counted in cans is 6). Same numeric-as-string shape
+    // as item_locations.quantity.
+    quantityPerScan: numeric("quantity_per_scan").notNull().default("1"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("barcode_registrations_household_id_barcode_value_unique").on(
+      table.householdId,
+      table.barcodeValue,
+    ),
+    check(
+      "barcode_registrations_quantity_per_scan_positive",
+      sql`${table.quantityPerScan} > 0`,
+    ),
+  ],
+);
+
+export const productNameSourceEnum = pgEnum("product_name_source", [
+  "open_food_facts",
+  "upcitemdb",
+]);
+
+// Product-name lookups on first scan (ADR 0008), cached by canonical
+// barcode value and shared across households — a product's name belongs
+// to the product, not to whoever scanned it. A null productName records a
+// miss, so a barcode no source knows isn't re-asked on every scan.
+export const barcodeProductNames = pgTable("barcode_product_names", {
+  barcodeValue: text("barcode_value").primaryKey(),
+  productName: text("product_name"),
+  source: productNameSourceEnum("source"),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
