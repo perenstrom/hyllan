@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 
 import { createLocation } from "./locations/actions";
+import { LISTBOX_OPTION_CLASS } from "@/app/listbox-styles";
+import { useListboxNavigation } from "@/app/use-listbox-navigation";
 import type { LocationOption } from "@/lib/location";
 
 const UNASSIGNED_LABEL = "Unassigned";
@@ -57,6 +59,9 @@ export function LocationPickerCombobox({
   }
 
   function create() {
+    if (isPending) {
+      return;
+    }
     setError(null);
     startTransition(async () => {
       const result = await createLocation(trimmed);
@@ -69,9 +74,21 @@ export function LocationPickerCombobox({
     });
   }
 
+  const { inputProps, listboxProps, optionProps } = useListboxNavigation({
+    // The create row, when offered, is the last option.
+    optionCount: matches.length + (canCreate ? 1 : 0),
+    open,
+    query,
+    onOpen: () => setOpen(true),
+    onClose: () => setOpen(false),
+    onActivate: (index) =>
+      index < matches.length ? select(matches[index]) : create(),
+  });
+
   return (
     <div className="relative">
       <input
+        {...inputProps}
         id={id}
         value={query}
         onChange={(event) => {
@@ -93,32 +110,34 @@ export function LocationPickerCombobox({
       <input type="hidden" name="locationId" value={value ?? ""} />
 
       {open && (
-        <ul className="absolute top-full z-10 mt-1 w-full rounded-lg border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
-          {matches.map((option) => (
-            <li key={option.id ?? "unassigned"}>
-              <button
-                type="button"
-                onMouseDown={() => select(option)}
-                className="block w-full px-3 py-2.5 text-left sm:py-1.5 text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-              >
-                {option.name}
-              </button>
+        <ul
+          {...listboxProps}
+          className="absolute top-full z-10 mt-1 w-full rounded-lg border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
+        >
+          {matches.map((option, index) => (
+            <li
+              key={option.id ?? "unassigned"}
+              {...optionProps(index)}
+              onMouseDown={() => select(option)}
+              className={LISTBOX_OPTION_CLASS}
+            >
+              {option.name}
             </li>
           ))}
           {canCreate && (
-            <li>
-              <button
-                type="button"
-                onMouseDown={create}
-                disabled={isPending}
-                className="block w-full px-3 py-2.5 text-left sm:py-1.5 text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
-              >
-                Add &ldquo;{trimmed}&rdquo; as new location
-              </button>
+            <li
+              {...optionProps(matches.length, { disabled: isPending })}
+              onMouseDown={create}
+              className={`${LISTBOX_OPTION_CLASS} aria-disabled:opacity-50`}
+            >
+              Add &ldquo;{trimmed}&rdquo; as new location
             </li>
           )}
           {matches.length === 0 && !canCreate && (
-            <li className="px-3 py-1.5 text-zinc-500 dark:text-zinc-500">
+            <li
+              role="presentation"
+              className="px-3 py-1.5 text-zinc-500 dark:text-zinc-500"
+            >
               No matches
             </li>
           )}
