@@ -12,6 +12,16 @@ import { LocationFilterDropdown } from "./location-filter-dropdown";
 import { RowActionsMenu } from "./row-actions-menu";
 import { StatusFilterDropdown } from "./status-filter-dropdown";
 import {
+  PrototypeSwitcher,
+  useVariant,
+} from "./search-prototype/prototype-switcher";
+import {
+  matchesSearch,
+  VariantA,
+  VariantB,
+  VariantC,
+} from "./search-prototype/search-variants";
+import {
   activeBuckets,
   bucketsTotal,
   involvedLocationKeys,
@@ -344,6 +354,9 @@ export function SignedInHome({ items, locations }: Props) {
     () => readStoredLocationFilter(locations),
   );
   const [groupBy, setGroupBy] = useState<GroupBy>("item");
+  // PROTOTYPE (PER-400): search placement variants.
+  const variant = useVariant();
+  const [query, setQuery] = useState("");
 
   // Starts with every (unfiltered) multi-location item already open (PER-288
   // review) — computed once from the initial items, not recomputed as
@@ -461,7 +474,9 @@ export function SignedInHome({ items, locations }: Props) {
     .filter((item): item is PantryItemWithLocations => item !== undefined)
     .filter(
       (item) =>
-        statusVisibleIds.has(item.id) && locationVisibleIds.has(item.id),
+        statusVisibleIds.has(item.id) &&
+        locationVisibleIds.has(item.id) &&
+        matchesSearch(item.name, query),
     );
 
   async function handleIncrement(itemId: string, locationId: string | null) {
@@ -503,24 +518,36 @@ export function SignedInHome({ items, locations }: Props) {
           </nav>
         </div>
 
-        {optimisticItems.length > 0 && (
-          <div className="flex items-center gap-2 overflow-x-auto px-4 sm:overflow-visible sm:px-0">
-            <div className="shrink-0">
-              <GroupByToggle value={groupBy} onChange={setGroupBy} />
-            </div>
-            <div className="ml-auto flex shrink-0 items-center gap-2">
-              <LocationFilterDropdown
-                locations={locations}
-                hiddenKeys={hiddenLocationKeys}
-                onToggle={handleLocationFilterToggle}
+        {optimisticItems.length > 0 &&
+          (() => {
+            const Toolbar =
+              variant === "B"
+                ? VariantB
+                : variant === "C"
+                  ? VariantC
+                  : VariantA;
+            return (
+              <Toolbar
+                query={query}
+                onQueryChange={setQuery}
+                toggle={<GroupByToggle value={groupBy} onChange={setGroupBy} />}
+                filters={
+                  <>
+                    <LocationFilterDropdown
+                      locations={locations}
+                      hiddenKeys={hiddenLocationKeys}
+                      onToggle={handleLocationFilterToggle}
+                    />
+                    <StatusFilterDropdown
+                      filter={statusFilter}
+                      onChange={handleStatusFilterChange}
+                    />
+                  </>
+                }
               />
-              <StatusFilterDropdown
-                filter={statusFilter}
-                onChange={handleStatusFilterChange}
-              />
-            </div>
-          </div>
-        )}
+            );
+          })()}
+        <PrototypeSwitcher current={variant} />
 
         {optimisticItems.length === 0 ? (
           <p className="flex flex-1 items-center justify-center px-4 text-center text-lg text-zinc-600 dark:text-zinc-400">
