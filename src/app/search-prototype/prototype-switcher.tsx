@@ -6,18 +6,19 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
-export type VariantKey = "A" | "B" | "C";
+export type VariantKey = "A" | "B" | "C" | "D";
 
 export const VARIANTS: { key: VariantKey; name: string }[] = [
   { key: "A", name: "Own full-width row" },
   { key: "B", name: "Icon that expands" },
   { key: "C", name: "Inline desktop, row mobile" },
+  { key: "D", name: "B + mobile title-row icon" },
 ];
 
 export function useVariant(): VariantKey {
   const searchParams = useSearchParams();
   const raw = searchParams.get("variant");
-  return raw === "B" || raw === "C" ? raw : "A";
+  return raw === "B" || raw === "C" || raw === "D" ? raw : "A";
 }
 
 export function PrototypeSwitcher({ current }: { current: VariantKey }) {

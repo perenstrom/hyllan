@@ -20,6 +20,8 @@ import {
   VariantA,
   VariantB,
   VariantC,
+  VariantD,
+  VariantDTitle,
 } from "./search-prototype/search-variants";
 import {
   activeBuckets,
@@ -496,9 +498,22 @@ export function SignedInHome({ items, locations }: Props) {
           mobile action bar. */}
       <main className="flex flex-1 flex-col gap-3 pt-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:gap-4 sm:px-6 sm:py-6">
         <div className="flex items-center justify-between px-4 sm:px-0">
-          <h1 className="text-xl font-semibold text-black sm:text-lg dark:text-zinc-50">
-            Your pantry
-          </h1>
+          {(() => {
+            const title = (
+              <h1 className="text-xl font-semibold text-black sm:text-lg dark:text-zinc-50">
+                Your pantry
+              </h1>
+            );
+            return variant === "D" && optimisticItems.length > 0 ? (
+              <VariantDTitle
+                query={query}
+                onQueryChange={setQuery}
+                title={title}
+              />
+            ) : (
+              title
+            );
+          })()}
           {/* One group for the three primary actions: inline next to the
               title from sm up, a thumb-reachable bar pinned to the bottom
               of the screen below it. */}
@@ -521,11 +536,13 @@ export function SignedInHome({ items, locations }: Props) {
         {optimisticItems.length > 0 &&
           (() => {
             const Toolbar =
-              variant === "B"
-                ? VariantB
-                : variant === "C"
-                  ? VariantC
-                  : VariantA;
+              variant === "D"
+                ? VariantD
+                : variant === "B"
+                  ? VariantB
+                  : variant === "C"
+                    ? VariantC
+                    : VariantA;
             return (
               <Toolbar
                 query={query}

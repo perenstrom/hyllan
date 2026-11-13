@@ -182,3 +182,104 @@ export function VariantC({
     </div>
   );
 }
+
+// D: B, but on mobile the search icon sits right-aligned on the "Your
+// pantry" title row (free there, since the actions are in the bottom bar),
+// and opening it swaps the title for the input — so the toggle/filters row
+// never overflows and stays usable while searching. Desktop is unchanged
+// from B: the icon expands inline in the toolbar row.
+type SearchProps = {
+  query: string;
+  onQueryChange: (next: string) => void;
+};
+
+function SearchIconButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label="Search pantry items"
+      onClick={onClick}
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-zinc-300 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+    >
+      <Search className="h-4 w-4" />
+    </button>
+  );
+}
+
+export function VariantDTitle({
+  query,
+  onQueryChange,
+  title,
+}: SearchProps & { title: ReactNode }) {
+  const [open, setOpen] = useState(query !== "");
+  const expanded = open || query !== "";
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <div className={expanded ? "hidden sm:block" : ""}>{title}</div>
+      <div className="ml-auto flex min-w-0 flex-1 justify-end sm:hidden">
+        {expanded ? (
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <SearchInput
+              query={query}
+              onQueryChange={onQueryChange}
+              autoFocus={open}
+              onBlur={() => {
+                if (query === "") setOpen(false);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                onQueryChange("");
+                setOpen(false);
+              }}
+              className="shrink-0 text-sm text-zinc-600 dark:text-zinc-400"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <SearchIconButton onClick={() => setOpen(true)} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DesktopExpandingSearch({ query, onQueryChange }: SearchProps) {
+  const [open, setOpen] = useState(query !== "");
+  const expanded = open || query !== "";
+  return expanded ? (
+    <div className="w-64">
+      <SearchInput
+        query={query}
+        onQueryChange={onQueryChange}
+        autoFocus={open}
+        onBlur={() => {
+          if (query === "") setOpen(false);
+        }}
+      />
+    </div>
+  ) : (
+    <SearchIconButton onClick={() => setOpen(true)} />
+  );
+}
+
+export function VariantD({
+  query,
+  onQueryChange,
+  toggle,
+  filters,
+}: ToolbarProps) {
+  return (
+    <div className="flex items-center gap-2 overflow-x-auto px-4 sm:overflow-visible sm:px-0">
+      <div className="shrink-0">{toggle}</div>
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="hidden sm:block">
+          <DesktopExpandingSearch query={query} onQueryChange={onQueryChange} />
+        </div>
+        {filters}
+      </div>
+    </div>
+  );
+}
