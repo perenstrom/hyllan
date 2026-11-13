@@ -31,6 +31,9 @@ type Props = {
   pendingLabel: string;
   locations: LocationOption[];
   defaultValues?: ItemFormDefaultValues;
+  // Add mode only: a starting name without the rest of defaultValues,
+  // whose presence would otherwise switch the form into edit mode.
+  initialName?: string;
   // Rendered below the form, outside it — for sections that save on their
   // own rather than through this form's submit (the edit page's Barcodes).
   children?: ReactNode;
@@ -46,6 +49,7 @@ export function ItemForm({
   pendingLabel,
   locations: initialLocations,
   defaultValues,
+  initialName,
   children,
 }: Props) {
   const [state, formAction, pending] = useActionState(action, undefined);
@@ -78,7 +82,7 @@ export function ItemForm({
             name="name"
             type="text"
             required
-            defaultValue={defaultValues?.name}
+            defaultValue={defaultValues?.name ?? initialName}
             className="h-11 w-full rounded border border-zinc-300 bg-white px-3 sm:h-10 dark:border-zinc-700 dark:bg-zinc-900"
           />
         </div>

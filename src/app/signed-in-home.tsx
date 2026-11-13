@@ -9,6 +9,11 @@ import { AppHeader } from "./app-header";
 import { MinusIcon, PlusIcon } from "./icons";
 import { decrementItem, incrementItem } from "./items/actions";
 import { LocationFilterDropdown } from "./location-filter-dropdown";
+import {
+  PantrySearchTitleRow,
+  PantrySearchToolbarControl,
+  usePantrySearch,
+} from "./pantry-search";
 import { RowActionsMenu } from "./row-actions-menu";
 import { StatusFilterDropdown } from "./status-filter-dropdown";
 import {
@@ -27,6 +32,7 @@ import {
   formatQuantity,
   getPantryItemStockStatus,
   incrementQuantity,
+  matchesPantrySearch,
   nextPantrySortState,
   parseStoredStatusFilter,
   sortPantryItems,
@@ -344,6 +350,8 @@ export function SignedInHome({ items, locations }: Props) {
     () => readStoredLocationFilter(locations),
   );
   const [groupBy, setGroupBy] = useState<GroupBy>("item");
+  const hasItems = optimisticItems.length > 0;
+  const search = usePantrySearch({ enabled: hasItems });
 
   // Starts with every (unfiltered) multi-location item already open (PER-288
   // review) — computed once from the initial items, not recomputed as
@@ -456,13 +464,29 @@ export function SignedInHome({ items, locations }: Props) {
       ),
     [optimisticItems, hiddenLocationKeys],
   );
+  // Search (PER-400) is a third membership check on the same live items,
+  // never a reorder — it only ever removes rows from the sorted list.
+  const searchActive = search.query.trim() !== "";
+  const searchMatchIds = useMemo(
+    () =>
+      new Set(
+        optimisticItems
+          .filter((item) => matchesPantrySearch(item.name, search.query))
+          .map((item) => item.id),
+      ),
+    [optimisticItems, search.query],
+  );
+  const passesFilters = (id: string) =>
+    statusVisibleIds.has(id) && locationVisibleIds.has(id);
   const displayItems = orderedIds
     .map((id) => itemsById.get(id))
     .filter((item): item is PantryItemWithLocations => item !== undefined)
-    .filter(
-      (item) =>
-        statusVisibleIds.has(item.id) && locationVisibleIds.has(item.id),
-    );
+    .filter((item) => passesFilters(item.id) && searchMatchIds.has(item.id));
+  // Matches the household can't see because a filter hides them — said
+  // out loud rather than overriding the filters (CONTEXT.md "Search").
+  const hiddenMatchCount = searchActive
+    ? [...searchMatchIds].filter((id) => !passesFilters(id)).length
+    : 0;
 
   async function handleIncrement(itemId: string, locationId: string | null) {
     addOptimisticUpdate({ itemId, locationId, type: "increment" });
@@ -481,9 +505,14 @@ export function SignedInHome({ items, locations }: Props) {
           mobile action bar. */}
       <main className="flex flex-1 flex-col gap-3 pt-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:gap-4 sm:px-6 sm:py-6">
         <div className="flex items-center justify-between px-4 sm:px-0">
-          <h1 className="text-xl font-semibold text-black sm:text-lg dark:text-zinc-50">
-            Your pantry
-          </h1>
+          <PantrySearchTitleRow
+            search={search}
+            title={
+              <h1 className="text-xl font-semibold text-black sm:text-lg dark:text-zinc-50">
+                Your pantry
+              </h1>
+            }
+          />
           {/* One group for the three primary actions: inline next to the
               title from sm up, a thumb-reachable bar pinned to the bottom
               of the screen below it. */}
@@ -503,12 +532,13 @@ export function SignedInHome({ items, locations }: Props) {
           </nav>
         </div>
 
-        {optimisticItems.length > 0 && (
+        {hasItems && (
           <div className="flex items-center gap-2 overflow-x-auto px-4 sm:overflow-visible sm:px-0">
             <div className="shrink-0">
               <GroupByToggle value={groupBy} onChange={setGroupBy} />
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-2">
+              <PantrySearchToolbarControl search={search} />
               <LocationFilterDropdown
                 locations={locations}
                 hiddenKeys={hiddenLocationKeys}
@@ -522,14 +552,28 @@ export function SignedInHome({ items, locations }: Props) {
           </div>
         )}
 
-        {optimisticItems.length === 0 ? (
-          <p className="flex flex-1 items-center justify-center px-4 text-center text-lg text-zinc-600 dark:text-zinc-400">
-            Your pantry is empty.
+        {hiddenMatchCount > 0 && displayItems.length > 0 && (
+          <p className="px-4 text-sm text-zinc-600 sm:px-0 dark:text-zinc-400">
+            {hiddenMatchesMessage(hiddenMatchCount)}
           </p>
+        )}
+
+        {!hasItems ? (
+          <p className={EMPTY_STATE_CLASS}>Your pantry is empty.</p>
         ) : displayItems.length === 0 ? (
-          <p className="flex flex-1 items-center justify-center px-4 text-center text-lg text-zinc-600 dark:text-zinc-400">
-            No items match the current filter.
-          </p>
+          !searchActive ? (
+            <p className={EMPTY_STATE_CLASS}>
+              No items match the current filter.
+            </p>
+          ) : hiddenMatchCount > 0 ? (
+            // The item exists, so "no matches" and an Add link would both
+            // be wrong — the filters are what's in the way.
+            <p className={EMPTY_STATE_CLASS}>
+              {hiddenMatchesMessage(hiddenMatchCount)}
+            </p>
+          ) : (
+            <NoSearchMatches query={search.query.trim()} />
+          )
         ) : groupBy === "item" ? (
           <ItemGroupedTable
             items={displayItems}
@@ -551,6 +595,31 @@ export function SignedInHome({ items, locations }: Props) {
           />
         )}
       </main>
+    </div>
+  );
+}
+
+const EMPTY_STATE_CLASS =
+  "flex flex-1 items-center justify-center px-4 text-center text-lg text-zinc-600 dark:text-zinc-400";
+
+function hiddenMatchesMessage(count: number) {
+  return count === 1
+    ? "1 matching item is hidden by your filters."
+    : `${count} matching items are hidden by your filters.`;
+}
+
+function NoSearchMatches({ query }: { query: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
+      <p className="text-lg break-all text-zinc-600 dark:text-zinc-400">
+        No items match “{query}”.
+      </p>
+      <Link
+        href={`/items/new?name=${encodeURIComponent(query)}`}
+        className="text-sm font-medium break-all text-black underline dark:text-zinc-50"
+      >
+        + Add “{query}”
+      </Link>
     </div>
   );
 }

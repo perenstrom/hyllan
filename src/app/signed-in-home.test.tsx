@@ -26,6 +26,14 @@ vi.mock("./actions", () => ({
   deleteAccount: vi.fn(),
 }));
 
+// The Search query lives in `?q=` (PER-400) — each test sets the URL the
+// page "loaded" with here; the component writes it back through
+// window.history.replaceState, which Next keeps useSearchParams in step with.
+let currentSearchParams = new URLSearchParams();
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => currentSearchParams,
+}));
+
 const { SignedInHome } = await import("./signed-in-home");
 
 const PANTRY_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
@@ -78,6 +86,8 @@ describe("SignedInHome", () => {
     incrementItemMock.mockReset();
     deleteItemMock.mockReset();
     window.localStorage.clear();
+    currentSearchParams = new URLSearchParams();
+    window.history.replaceState(null, "", "/");
   });
 
   it("shows the empty state when there are no items", () => {
@@ -187,7 +197,7 @@ describe("SignedInHome", () => {
   it("keeps a 16px horizontal inset on the header row below sm, since main no longer provides one there", () => {
     renderHome({ items: [] });
 
-    const header = screen.getByText("Your pantry").closest("div");
+    const header = screen.getByText("Your pantry").closest(".px-4");
     expect(header).toHaveClass("px-4", "sm:px-0");
   });
 
@@ -1120,6 +1130,446 @@ describe("SignedInHome", () => {
       });
 
       expect(screen.queryByText("Rice")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("search (PER-400)", () => {
+    function searchItems() {
+      return [
+        itemRow({
+          id: "11111111-1111-1111-1111-111111111111",
+          name: "Krossade tomater",
+          quantity: "4",
+          unit: "count",
+        }),
+        itemRow({
+          id: "22222222-2222-2222-2222-222222222222",
+          name: "Mjölk",
+          quantity: "1",
+          unit: "l",
+        }),
+        itemRow({
+          id: "33333333-3333-3333-3333-333333333333",
+          name: "Rice",
+          quantity: "2",
+        }),
+      ];
+    }
+
+    // Both placements (the mobile title row and the desktop toolbar) are in
+    // the DOM, one hidden by CSS jsdom doesn't apply — the first of each is
+    // the mobile one.
+    function searchButton() {
+      return screen.getAllByRole("button", { name: "Search pantry items" })[0];
+    }
+
+    function searchBox() {
+      return screen.getAllByRole("searchbox", {
+        name: "Search pantry items",
+      })[0];
+    }
+
+    async function search(user: ReturnType<typeof userEvent.setup>, q: string) {
+      await user.click(searchButton());
+      await user.type(searchBox(), q);
+    }
+
+    it("narrows the list to the items whose name holds every word, in any order", async () => {
+      const user = userEvent.setup();
+      renderHome({ items: searchItems() });
+
+      await search(user, "tom kross");
+
+      expect(nameCells()).toEqual(["Krossade tomater"]);
+    });
+
+    it("ignores case but not accents", async () => {
+      const user = userEvent.setup();
+      renderHome({ items: searchItems() });
+
+      await search(user, "MJÖLK");
+      expect(nameCells()).toEqual(["Mjölk"]);
+
+      await user.clear(searchBox());
+      await user.type(searchBox(), "mjolk");
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    });
+
+    it("never matches Location names", async () => {
+      const user = userEvent.setup();
+      renderHome({
+        items: [
+          itemRow({
+            buckets: [
+              {
+                locationId: GARAGE_ID,
+                locationName: "Garage fridge",
+                quantity: "2",
+              },
+            ],
+          }),
+        ],
+        locations: [{ id: GARAGE_ID, name: "Garage fridge" }],
+      });
+
+      await search(user, "garage");
+
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    });
+
+    it("keeps the list's order", async () => {
+      const user = userEvent.setup();
+      window.localStorage.setItem(
+        "hyllan:pantry-sort",
+        JSON.stringify({ column: "name", direction: "descending" }),
+      );
+      renderHome({
+        items: [
+          itemRow({ id: "1", name: "Ris basmati" }),
+          itemRow({ id: "2", name: "Mjölk" }),
+          itemRow({ id: "3", name: "Ris jasmin" }),
+        ],
+      });
+
+      await search(user, "ris");
+
+      expect(nameCells()).toEqual(["Ris jasmin", "Ris basmati"]);
+    });
+
+    it("shows a row only if it also passes the Status filter, and says how many matches the filters hide", async () => {
+      const user = userEvent.setup();
+      const storedFilter = JSON.stringify({
+        "in-stock": false,
+        "low-stock": true,
+        "out-of-stock": true,
+        empty: true,
+      });
+      window.localStorage.setItem("hyllan:pantry-status-filter", storedFilter);
+      renderHome({
+        items: [
+          ...searchItems(),
+          itemRow({
+            id: "44444444-4444-4444-4444-444444444444",
+            name: "Rice noodles",
+            quantity: "1",
+            minimumQuantity: "2",
+          }),
+        ],
+      });
+
+      await search(user, "rice");
+
+      expect(nameCells()).toEqual(["Rice noodles Low stock"]);
+      expect(
+        screen.getByText("1 matching item is hidden by your filters."),
+      ).toBeInTheDocument();
+      expect(window.localStorage.getItem("hyllan:pantry-status-filter")).toBe(
+        storedFilter,
+      );
+      expect(
+        screen.getByRole("button", { name: "Status (3/4)" }),
+      ).toBeInTheDocument();
+    });
+
+    it("shows only the hidden-matches line when the filters hide every match", async () => {
+      const user = userEvent.setup();
+      window.localStorage.setItem(
+        "hyllan:pantry-status-filter",
+        JSON.stringify({
+          "in-stock": false,
+          "low-stock": true,
+          "out-of-stock": true,
+          empty: true,
+        }),
+      );
+      renderHome({
+        items: [
+          itemRow({ id: "1", name: "Rice" }),
+          itemRow({ id: "2", name: "Rice noodles" }),
+        ],
+      });
+
+      await search(user, "rice");
+
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
+      expect(
+        screen.getByText("2 matching items are hidden by your filters."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/No items match/)).not.toBeInTheDocument();
+    });
+
+    it("doesn't mention hidden items when no search is active", () => {
+      window.localStorage.setItem(
+        "hyllan:pantry-status-filter",
+        JSON.stringify({
+          "in-stock": false,
+          "low-stock": true,
+          "out-of-stock": true,
+          empty: true,
+        }),
+      );
+      renderHome({ items: searchItems() });
+
+      expect(
+        screen.queryByText(/hidden by your filters/),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText("No items match the current filter."),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps a matching multi-location item's per-Location rows in By item", async () => {
+      const user = userEvent.setup();
+      renderHome({
+        items: [
+          itemRow({
+            quantity: "3",
+            buckets: [
+              { locationId: PANTRY_ID, locationName: "Pantry", quantity: "2" },
+              { locationId: null, locationName: null, quantity: "1" },
+            ],
+          }),
+          itemRow({ id: "2", name: "Coffee" }),
+        ],
+        locations: [{ id: PANTRY_ID, name: "Pantry" }],
+      });
+
+      await search(user, "rice");
+
+      expect(nameCells()).toEqual(["Rice", "Pantry", "Unassigned"]);
+    });
+
+    it("shows a matching item in every Location group it's in, and hides groups with no matches, in By location", async () => {
+      const user = userEvent.setup();
+      renderHome({
+        items: [
+          itemRow({
+            id: "1",
+            name: "Rice",
+            quantity: "3",
+            buckets: [
+              { locationId: PANTRY_ID, locationName: "Pantry", quantity: "2" },
+              {
+                locationId: GARAGE_ID,
+                locationName: "Garage fridge",
+                quantity: "1",
+              },
+            ],
+          }),
+          itemRow({
+            id: "2",
+            name: "Coffee",
+            buckets: [{ locationId: null, locationName: null, quantity: "2" }],
+          }),
+        ],
+        locations: [
+          { id: PANTRY_ID, name: "Pantry" },
+          { id: GARAGE_ID, name: "Garage fridge" },
+        ],
+      });
+      await user.click(screen.getByRole("button", { name: "By location" }));
+
+      await search(user, "rice");
+
+      expect(
+        screen.getByRole("heading", { name: "Pantry" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Garage fridge" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", { name: "Unassigned" }),
+      ).not.toBeInTheDocument();
+      expect(screen.getAllByRole("row", { name: /Rice/ })).toHaveLength(2);
+      expect(screen.queryByText("Coffee")).not.toBeInTheDocument();
+    });
+
+    it("shows the query and an Add link pre-filling the name when nothing matches", async () => {
+      const user = userEvent.setup();
+      renderHome({ items: searchItems() });
+
+      await search(user, " Fusilli ");
+
+      expect(screen.getByText("No items match “Fusilli”.")).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "+ Add “Fusilli”" }),
+      ).toHaveAttribute("href", "/items/new?name=Fusilli");
+    });
+
+    it("writes the query into ?q= in place, and clears it when the query empties", async () => {
+      const user = userEvent.setup();
+      const replaceState = vi.spyOn(window.history, "replaceState");
+      const pushState = vi.spyOn(window.history, "pushState");
+      renderHome({ items: searchItems() });
+
+      await search(user, "tom kross");
+      expect(window.location.search).toBe("?q=tom+kross");
+
+      await user.clear(searchBox());
+      expect(window.location.search).toBe("");
+      expect(replaceState).toHaveBeenCalled();
+      expect(pushState).not.toHaveBeenCalled();
+      replaceState.mockRestore();
+      pushState.mockRestore();
+    });
+
+    it("starts from ?q=, with the search already open", () => {
+      currentSearchParams = new URLSearchParams("q=mjölk");
+      renderHome({ items: searchItems() });
+
+      expect(searchBox()).toHaveValue("mjölk");
+      expect(nameCells()).toEqual(["Mjölk"]);
+    });
+
+    it("never stores the query in localStorage", async () => {
+      const user = userEvent.setup();
+      renderHome({ items: searchItems() });
+
+      await search(user, "rice");
+
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i)!;
+        expect(window.localStorage.getItem(key)).not.toContain("rice");
+      }
+    });
+
+    it("renders no search control when the pantry has no items", () => {
+      renderHome({ items: [] });
+
+      expect(
+        screen.queryByRole("button", { name: "Search pantry items" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("opens into a focused input, and collapses back on blur while empty", async () => {
+      const user = userEvent.setup();
+      renderHome({ items: searchItems() });
+
+      await user.click(searchButton());
+      expect(searchBox()).toHaveFocus();
+
+      await user.click(document.body);
+      expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+    });
+
+    it("stays open on blur while it holds a query", async () => {
+      const user = userEvent.setup();
+      renderHome({ items: searchItems() });
+
+      await search(user, "rice");
+      await user.click(document.body);
+
+      expect(searchBox()).toHaveValue("rice");
+    });
+
+    it("clears the query with the ✕ button, keeping focus in the input", async () => {
+      const user = userEvent.setup();
+      renderHome({ items: searchItems() });
+
+      await search(user, "rice");
+      await user.click(
+        screen.getAllByRole("button", { name: "Clear search" })[0],
+      );
+
+      expect(searchBox()).toHaveValue("");
+      expect(searchBox()).toHaveFocus();
+      expect(nameCells()).toHaveLength(3);
+    });
+
+    it("clears on Escape, then blurs and collapses on a second Escape", async () => {
+      const user = userEvent.setup();
+      renderHome({ items: searchItems() });
+
+      await search(user, "rice");
+      await user.keyboard("{Escape}");
+      expect(searchBox()).toHaveValue("");
+      expect(searchBox()).toHaveFocus();
+
+      await user.keyboard("{Escape}");
+      expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+    });
+
+    it("clears a search restored from ?q= on Escape without collapsing, then collapses on a second Escape", async () => {
+      currentSearchParams = new URLSearchParams("q=rice");
+      const user = userEvent.setup();
+      renderHome({ items: searchItems() });
+
+      await user.click(searchBox());
+      await user.keyboard("{Escape}");
+      expect(searchBox()).toHaveValue("");
+      expect(searchBox()).toHaveFocus();
+
+      await user.keyboard("{Escape}");
+      expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+    });
+
+    it("keeps a search restored from ?q= open and focused when ✕ clears it", async () => {
+      currentSearchParams = new URLSearchParams("q=rice");
+      const user = userEvent.setup();
+      renderHome({ items: searchItems() });
+
+      await user.click(
+        screen.getAllByRole("button", { name: "Clear search" })[0],
+      );
+
+      expect(searchBox()).toHaveValue("");
+      expect(searchBox()).toHaveFocus();
+    });
+
+    it("hides the title while open, and Cancel clears the query and brings it back", async () => {
+      const user = userEvent.setup();
+      renderHome({ items: searchItems() });
+
+      await search(user, "rice");
+      expect(
+        screen.getByRole("heading", { name: "Your pantry" }).parentElement,
+      ).toHaveClass("hidden");
+
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Your pantry" }).parentElement,
+      ).not.toHaveClass("hidden");
+      expect(nameCells()).toHaveLength(3);
+      expect(window.location.search).toBe("");
+    });
+
+    it("focuses the search when / is pressed outside any input", async () => {
+      const user = userEvent.setup();
+      renderHome({ items: searchItems() });
+
+      await user.keyboard("/");
+
+      expect(searchBox()).toHaveFocus();
+      expect(searchBox()).toHaveValue("");
+    });
+
+    it("focuses the already-open search on /", async () => {
+      currentSearchParams = new URLSearchParams("q=rice");
+      const user = userEvent.setup();
+      renderHome({ items: searchItems() });
+
+      await user.keyboard("/");
+
+      expect(searchBox()).toHaveFocus();
+      expect(searchBox()).toHaveValue("rice");
+    });
+
+    it("leaves / alone while typing in another field", async () => {
+      const user = userEvent.setup();
+      render(
+        <>
+          <input aria-label="Elsewhere" />
+          <SignedInHome items={searchItems()} locations={[]} />
+        </>,
+      );
+
+      await user.click(screen.getByLabelText("Elsewhere"));
+      await user.keyboard("/");
+
+      expect(screen.getByLabelText("Elsewhere")).toHaveValue("/");
+      expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
     });
   });
 });

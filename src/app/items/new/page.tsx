@@ -5,7 +5,12 @@ import { requireSessionClaims } from "@/lib/auth";
 import { getHouseholdForUser } from "@/lib/household";
 import { listLocations } from "@/lib/locations";
 
-export default async function NewItemPage() {
+type Props = {
+  searchParams: Promise<{ name?: string | string[] }>;
+};
+
+export default async function NewItemPage({ searchParams }: Props) {
+  const { name } = await searchParams;
   const { claims } = await requireSessionClaims();
   const household = await getHouseholdForUser(db, claims.sub);
   const locations = await listLocations(db, household.id);
@@ -13,7 +18,10 @@ export default async function NewItemPage() {
   return (
     <div className="flex flex-1 flex-col">
       <AppHeader />
-      <AddItemForm locations={locations} />
+      <AddItemForm
+        locations={locations}
+        initialName={typeof name === "string" ? name : undefined}
+      />
     </div>
   );
 }
