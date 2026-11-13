@@ -53,3 +53,7 @@ The stock status of a pantry item that is none of the above: quantity at or abov
 
 **Unit**:
 A display-only label attached to a pantry item's quantity (count, g, kg, ml, l, box, bag, pack — defaults to count). Purely descriptive: Hyllan does no conversion or normalization between units. Not to be confused with a unit of measure in the metrological sense.
+
+**Search**:
+Narrowing the pantry list to the pantry items whose name contains every word the household types, in any order, ignoring case but not accents ("mjolk" does not find "Mjölk", since å, ä and ö are letters of their own). Looks at pantry item names only — never Location names or barcode registrations. Applies on top of the Status and Locations filters rather than overriding them, and never changes the list's order. Not typo-tolerant.
+_Avoid_: filter (reserved for the Status and Locations filters), fuzzy search
