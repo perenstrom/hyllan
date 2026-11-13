@@ -204,6 +204,53 @@ export const SCENARIOS: Scenario[] = [
   { name: "pantry-out-of-stock", seed: [OUT_OF_STOCK_ITEM], route: "/" },
   { name: "pantry-empty-item", seed: [EMPTY_ITEM], route: "/" },
 
+  // Search (PER-400): `?q=` opens the search already expanded, at the
+  // title row on mobile and inline in the toolbar on desktop.
+  { name: "pantry-search", seed: DEFAULT_SEED_ITEMS, route: "/?q=to" },
+  {
+    name: "pantry-search-no-matches",
+    seed: DEFAULT_SEED_ITEMS,
+    route: "/?q=fusilli",
+  },
+  {
+    // Every match hidden: the hidden-matches line stands in for the empty
+    // state, with no "No items match" or Add link, since the item exists.
+    name: "pantry-search-all-hidden-by-filters",
+    seed: [EDITABLE_ITEM],
+    route: "/?q=rice",
+    interactions: async (page) => {
+      await page.getByRole("button", { name: /^Status/ }).click();
+      await page.getByRole("checkbox", { name: "In stock" }).click();
+      await page.keyboard.press("Escape");
+      await page
+        .getByText("1 matching item is hidden by your filters.")
+        .waitFor({ state: "visible" });
+    },
+  },
+  {
+    // Rice is in stock, so hiding In stock leaves only Rice noodles (low
+    // stock) on screen, with the line saying a match is hidden.
+    name: "pantry-search-hidden-by-filters",
+    seed: [
+      EDITABLE_ITEM,
+      {
+        name: "Rice noodles",
+        quantity: "1",
+        unit: "pack",
+        minimumQuantity: "2",
+      },
+    ],
+    route: "/?q=rice",
+    interactions: async (page) => {
+      await page.getByRole("button", { name: /^Status/ }).click();
+      await page.getByRole("checkbox", { name: "In stock" }).click();
+      await page.keyboard.press("Escape");
+      await page
+        .getByText("1 matching item is hidden by your filters.")
+        .waitFor({ state: "visible" });
+    },
+  },
+
   { name: "add-item", seed: [], route: "/items/new" },
   {
     name: "edit-item",

@@ -21,6 +21,22 @@ export function normalizePantryItemName(name: string): string {
   return name.trim().toLowerCase();
 }
 
+// Search (CONTEXT.md): every whitespace-separated word of the query must
+// appear somewhere in the name, in any order. Case-insensitive but not
+// accent-insensitive — å, ä and ö are letters of their own in Swedish, so
+// "mjolk" must not find "Mjölk". NFC folds composed and decomposed forms of
+// the same letter together, which is a different thing from ignoring
+// accents. Not typo-tolerant, no ranking.
+export function matchesPantrySearch(name: string, query: string): boolean {
+  const words = foldForSearch(query).split(/\s+/).filter(Boolean);
+  const haystack = foldForSearch(name);
+  return words.every((word) => haystack.includes(word));
+}
+
+function foldForSearch(text: string): string {
+  return text.normalize("NFC").toLowerCase();
+}
+
 // Quantity is stored as Drizzle's numeric-as-string (see src/db/schema/app.ts)
 // to avoid float precision loss, so validation stays string-based rather than
 // round-tripping the value through `Number`. Requires a leading digit (no

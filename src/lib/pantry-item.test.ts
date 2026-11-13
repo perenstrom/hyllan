@@ -10,6 +10,7 @@ import {
   incrementQuantity,
   isDefaultStatusFilter,
   isPantryItemUnit,
+  matchesPantrySearch,
   nextPantrySortState,
   normalizePantryItemName,
   parsePantryItemInput,
@@ -571,5 +572,44 @@ describe("parseQuantityPerScan", () => {
 
   it.each(["0", "0.0", "-1", "abc", ""])("rejects %j", (raw) => {
     expect(parseQuantityPerScan(raw)).toBeNull();
+  });
+});
+
+describe("matchesPantrySearch", () => {
+  it("matches when every word appears in the name, in any order", () => {
+    expect(matchesPantrySearch("Krossade tomater", "tom kross")).toBe(true);
+  });
+
+  it("doesn't match when one of the words is missing", () => {
+    expect(matchesPantrySearch("Krossade tomater", "tom bönor")).toBe(false);
+  });
+
+  it("matches a word anywhere inside the name, not just at word starts", () => {
+    expect(matchesPantrySearch("Krossade tomater", "mate")).toBe(true);
+  });
+
+  it("ignores case, including for å, ä and ö", () => {
+    expect(matchesPantrySearch("Mjölk", "MJÖLK")).toBe(true);
+  });
+
+  it("doesn't ignore accents", () => {
+    expect(matchesPantrySearch("Mjölk", "mjolk")).toBe(false);
+  });
+
+  it("treats composed and decomposed accented letters as the same letter", () => {
+    expect(matchesPantrySearch("Mjölk", "mjo\u0308lk")).toBe(true);
+  });
+
+  it.each(["", "   ", "\t\n"])(
+    "matches everything for an empty or whitespace-only query (%j)",
+    (query) => {
+      expect(matchesPantrySearch("Rice", query)).toBe(true);
+    },
+  );
+
+  it("ignores extra whitespace between and around words", () => {
+    expect(matchesPantrySearch("Krossade tomater", "  tom   kross ")).toBe(
+      true,
+    );
   });
 });

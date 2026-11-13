@@ -29,6 +29,18 @@ describe("AddItemForm", () => {
     expect(screen.getByLabelText("Unit")).toHaveValue("count");
   });
 
+  it("leaves the name field blank by default", () => {
+    render(<AddItemForm locations={[]} />);
+
+    expect(screen.getByLabelText("Name")).toHaveValue("");
+  });
+
+  it("pre-fills the name field with the name it's given (a Search's Add link)", () => {
+    render(<AddItemForm locations={[]} initialName="Krossade tomater" />);
+
+    expect(screen.getByLabelText("Name")).toHaveValue("Krossade tomater");
+  });
+
   it("leaves the optional minimum quantity field blank by default", () => {
     render(<AddItemForm locations={[]} />);
 
